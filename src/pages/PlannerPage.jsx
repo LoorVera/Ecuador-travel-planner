@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import {
   Container,
   Grid,
@@ -13,9 +14,16 @@ import {
   Divider,
   ActionIcon,
 } from '@mantine/core';
-import { IconLock, IconMapPin, IconCalculator, IconTrash, IconCheck } from '@tabler/icons-react';
+import {
+  IconLock,
+  IconMapPin,
+  IconCalculator,
+  IconTrash,
+  IconCheck,
+  IconStar,
+} from '@tabler/icons-react';
 import { useAuthStore } from '../store/useAuthStore';
-import { useBudgetStore } from '../store/UseBudgetStore.js';
+import { useBudgetStore } from '../store/UseBudgetStore';
 
 const DESTINOS_ECUADOR = [
   { id: 1, nombre: 'Baños de Agua Santa', region: 'Sierra', precioBase: 120, proveedores: '3 agencias verificadas' },
@@ -31,10 +39,25 @@ export default function PlannerPage() {
 
   return (
     <Container size="xl" py="xl">
-      <Title order={2} mb="xs">Planificador Integral de Viajes — Ecuador</Title>
-      <Text c="dimmed" mb="xl">
-        Compara rutas, arma tu presupuesto en tiempo real y reserva con operadores verificados.
-      </Text>
+      {/* Encabezado con botón directo a Reseñas */}
+      <Group justify="space-between" align="flex-start" mb="xl">
+        <div>
+          <Title order={2} mb="xs">Planificador Integral de Viajes — Ecuador</Title>
+          <Text c="dimmed">
+            Compara rutas, arma tu presupuesto en tiempo real y reserva con operadores verificados.
+          </Text>
+        </div>
+
+        <Button
+          component={Link}
+          to="/resenas"
+          variant="light"
+          color="teal"
+          leftSection={<IconStar size={18} />}
+        >
+          Ver reseñas de viajeros
+        </Button>
+      </Group>
 
       <Grid>
         {/* Columna Izquierda: Catálogo de Destinos */}

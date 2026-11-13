@@ -8,6 +8,7 @@ import PlannerPage from './pages/PlannerPage';
 import ReviewsPage from './pages/ReviewsPage';
 import Navbar from './components/Navbar';
 import AuthModal from './components/AuthModal';
+import NotFoundPage from './pages/NotFoundPage';
 
 export default function App() {
   const setUser = useAuthStore((state) => state.setUser);
@@ -28,16 +29,21 @@ export default function App() {
     });
 
     return () => {
+      
       unsubscribeAuth();
       unsubscribeBudget();
     };
   }, [setUser, subscribeToBudget]);
 
   return (
+    
     <BrowserRouter>
       <Navbar />
       <AuthModal />
       <Routes>
+        <Route path="/" element={<PlannerPage />} />
+  <Route path="/resenas" element={<ReviewsPage />} />
+  <Route path="*" element={<NotFoundPage />} />
         <Route path="/" element={<PlannerPage />} />
         <Route path="/resenas" element={<ReviewsPage />} />
       </Routes>

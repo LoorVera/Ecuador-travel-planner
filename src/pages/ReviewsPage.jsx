@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import {
   Container,
   Title,
@@ -14,7 +15,7 @@ import {
   Avatar,
   Alert,
 } from '@mantine/core';
-import { IconLock, IconMessagePlus, IconStar } from '@tabler/icons-react';
+import { IconLock, IconMessagePlus, IconArrowLeft } from '@tabler/icons-react';
 import {
   collection,
   addDoc,
@@ -43,7 +44,6 @@ export default function ReviewsPage() {
   const [comentario, setComentario] = useState('');
   const [enviando, setEnviando] = useState(false);
 
-  // Escuchar reseñas en tiempo real desde Firestore
   useEffect(() => {
     const q = query(collection(db, 'resenas'), orderBy('fecha', 'desc'));
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -82,6 +82,19 @@ export default function ReviewsPage() {
 
   return (
     <Container size="md" py="xl">
+      {/* Botón de regreso al planificador */}
+      <Button
+        component={Link}
+        to="/"
+        variant="subtle"
+        size="sm"
+        leftSection={<IconArrowLeft size={16} />}
+        mb="md"
+        px={0}
+      >
+        Volver al planificador
+      </Button>
+
       <Title order={2} mb="xs">Experiencias de Viajeros en Ecuador</Title>
       <Text c="dimmed" mb="xl">
         Opiniones reales sobre rutas, operadores y presupuestos verificados.
