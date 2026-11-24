@@ -10,6 +10,11 @@ import Navbar from './components/Navbar';
 import AuthModal from './components/AuthModal';
 import AiChatWidget from './components/AiChatWidget';
 import NotFoundPage from './pages/NotFoundPage';
+import './App.css';
+import './index.css';
+import './styles/MapasPage.css';
+import './styles/PlannerPage.css';
+
 
 const MapasPage = lazy(() => import('./pages/MapasPage'));
 
@@ -26,7 +31,7 @@ export default function App() {
 
       if (currentUser) {
         unsubscribeBudget = subscribeToBudget(currentUser.uid);
-      } else {
+       else {
         useBudgetStore.getState().clearLocalBudget();
       }
     });
