@@ -1,0 +1,30 @@
+name: CI - Frontend React
+
+on:
+  push:
+    branches:
+      - main
+      - "**" # Permite ejecutar el workflow al hacer push en cualquier rama
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Descargar código del repositorio
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Compilar aplicación React
+        run: npm run build

@@ -23,13 +23,8 @@ import {
   IconStar,
 } from '@tabler/icons-react';
 import { useAuthStore } from '../store/useAuthStore';
-import { useBudgetStore } from '../store/UseBudgetStore';
-
-const DESTINOS_ECUADOR = [
-  { id: 1, nombre: 'Baños de Agua Santa', region: 'Sierra', precioBase: 120, proveedores: '3 agencias verificadas' },
-  { id: 2, nombre: 'Puerto López / Isla de la Plata', region: 'Costa', precioBase: 185, proveedores: '5 operadores locales' },
-  { id: 3, nombre: 'Cuyabeno Lodge', region: 'Amazonía', precioBase: 310, proveedores: '2 eco-lodges directos' },
-];
+import { useBudgetStore } from '../store/useBudgetStore';
+import { DESTINOS_ECUADOR } from '../data/destinos';
 
 export default function PlannerPage() {
   const { user, openAuthModal } = useAuthStore();

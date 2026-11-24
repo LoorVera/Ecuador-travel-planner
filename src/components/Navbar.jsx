@@ -2,15 +2,6 @@ import { Container, Group, Title, Button, Text, Badge, Box } from '@mantine/core
 import { IconCompass, IconLogout, IconUser } from '@tabler/icons-react';
 import { useAuthStore } from '../store/useAuthStore';
 import { Link } from 'react-router-dom';
-// ... dentro del Group izquierdo junto al logo:
-<Group gap="xs" ml="md">
-  <Button component={Link} to="/" variant="subtle" size="xs">
-    Planificador
-  </Button>
-  <Button component={Link} to="/resenas" variant="subtle" size="xs">
-    Reseñas
-  </Button>
-</Group>
 
 export default function Navbar() {
   const { user, openAuthModal, logout } = useAuthStore();
@@ -26,6 +17,17 @@ export default function Navbar() {
             <Badge variant="dot" color="green" visibleFrom="xs">
               Planificador Oficial
             </Badge>
+            <Group gap="xs" ml="md">
+              <Button component={Link} to="/" variant="subtle" size="xs">
+                Planificador
+              </Button>
+              <Button component={Link} to="/resenas" variant="subtle" size="xs">
+                Reseñas
+              </Button>
+              <Button component={Link} to="/mapas" variant="subtle" size="xs">
+                Mapas de Ecuador
+              </Button>
+            </Group>
           </Group>
 
           {/* Controles de sesión dinámicos */}
