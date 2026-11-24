@@ -1,16 +1,14 @@
-name: CI - Frontend React
+name: CI - Ecuador Travel Planner
 
 on:
   push:
-    branches:
-      - main
-      - "**" # Permite ejecutar el workflow al hacer push en cualquier rama
+    branches: ["**"]
   pull_request:
-    branches:
-      - main
+    branches: [main]
 
 jobs:
   build:
+    name: Lint y build
     runs-on: ubuntu-latest
 
     steps:
@@ -20,11 +18,21 @@ jobs:
       - name: Configurar Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "24"
           cache: "npm"
 
       - name: Instalar dependencias
         run: npm ci
 
+      - name: Ejecutar ESLint
+        run: npm run lint
+
       - name: Compilar aplicación React
         run: npm run build
+
+      - name: Guardar artefacto del build
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist
+          retention-days: 7
