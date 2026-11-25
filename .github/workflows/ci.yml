@@ -20,6 +20,7 @@ jobs:
   calidad-y-build:
     name: ESLint, build y artefacto
     runs-on: ubuntu-latest
+    timeout-minutes: 15
 
     steps:
       - name: Descargar el código fuente
