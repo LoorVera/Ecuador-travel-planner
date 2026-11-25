@@ -11,9 +11,6 @@ import AuthModal from './components/AuthModal';
 import AiChatWidget from './components/AiChatWidget';
 import NotFoundPage from './pages/NotFoundPage';
 
-// Error intencional para comprobar que el pipeline de CI detecta fallos.
-const brokenSyntax = ;
-
 const MapasPage = lazy(() => import('./pages/MapasPage'));
 
 export default function App() {
