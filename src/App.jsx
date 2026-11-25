@@ -11,6 +11,7 @@ import AuthModal from './components/AuthModal';
 import AiChatWidget from './components/AiChatWidget';
 import NotFoundPage from './pages/NotFoundPage';
 
+
 const MapasPage = lazy(() => import('./pages/MapasPage'));
 
 export default function App() {
