@@ -1,18 +1,28 @@
 name: CI - Ecuador Travel Planner
 
 on:
-  push:
-    branches: ["**"]
   pull_request:
     branches: [main]
+    types: [opened, synchronize, reopened]
+  push:
+    branches: [main]
+
+# El CI solo necesita leer el repositorio.
+permissions:
+  contents: read
+
+# Si llegan nuevos commits a la misma PR, cancela la ejecución anterior.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  build:
-    name: Lint y build
+  calidad-y-build:
+    name: ESLint, build y artefacto
     runs-on: ubuntu-latest
 
     steps:
-      - name: Descargar código del repositorio
+      - name: Descargar el código fuente
         uses: actions/checkout@v4
 
       - name: Configurar Node.js
@@ -24,15 +34,16 @@ jobs:
       - name: Instalar dependencias
         run: npm ci
 
-      - name: Ejecutar ESLint
+      - name: Validar la calidad del código con ESLint
         run: npm run lint
 
-      - name: Compilar aplicación React
+      - name: Compilar la aplicación React
         run: npm run build
 
-      - name: Guardar artefacto del build
+      - name: Guardar la carpeta dist como artefacto
         uses: actions/upload-artifact@v4
         with:
           name: dist
-          path: dist
+          path: dist/
+          if-no-files-found: error
           retention-days: 7
