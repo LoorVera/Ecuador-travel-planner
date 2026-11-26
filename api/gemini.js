@@ -9,6 +9,29 @@ const VENTANA_MS = 60_000;
 const LIMITE_PETICIONES = 12;
 const solicitudesPorIp = new Map();
 
+// Orígenes permitidos por CORS. `*` por defecto porque el endpoint no usa
+// cookies ni credenciales; se puede restringir con ALLOWED_ORIGINS.
+const ORIGENES_PERMITIDOS = (process.env.ALLOWED_ORIGINS || '*')
+  .split(',')
+  .map((origen) => origen.trim())
+  .filter(Boolean);
+
+function aplicarCors(req, res) {
+  const origen = req.headers?.origin;
+  const permitido = ORIGENES_PERMITIDOS.includes('*')
+    ? '*'
+    : ORIGENES_PERMITIDOS.find((valor) => valor === origen);
+
+  if (permitido) {
+    res.setHeader('Access-Control-Allow-Origin', permitido);
+    res.setHeader('Vary', 'Origin');
+  }
+
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Access-Control-Max-Age', '86400');
+}
+
 function permitirSolicitud(ip) {
   const ahora = Date.now();
   const registro = solicitudesPorIp.get(ip);
@@ -42,6 +65,12 @@ function leerCuerpo(body) {
 }
 
 export default async function handler(req, res) {
+  aplicarCors(req, res);
+
+  if (req.method === 'OPTIONS') {
+    return res.status(204).end();
+  }
+
   if (req.method !== 'POST') {
     res.setHeader('Allow', 'POST');
     return res.status(405).json({ error: 'Método no permitido.' });

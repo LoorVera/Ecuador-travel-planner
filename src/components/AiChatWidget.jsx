@@ -156,6 +156,8 @@ export default function AiChatWidget() {
     }
   };
 
+  const ultimoMensajeUsuario = [...mensajes].reverse().find((mensaje) => mensaje.role === 'user');
+
   return (
     <>
       <Affix position={{ bottom: 22, right: 22 }} zIndex={170}>
@@ -281,6 +283,18 @@ export default function AiChatWidget() {
                       title="No pude responder"
                     >
                       <Text size="sm">{mensaje.content}</Text>
+                      {ultimoMensajeUsuario && (
+                        <Button
+                          mt="xs"
+                          size="compact-xs"
+                          variant="light"
+                          color="red"
+                          leftSection={<IconRefresh size={12} />}
+                          onClick={() => enviar(ultimoMensajeUsuario.content)}
+                        >
+                          Reintentar
+                        </Button>
+                      )}
                     </Alert>
                   </Box>
                 );
@@ -288,6 +302,21 @@ export default function AiChatWidget() {
 
               return (
                 <BurbujaAsistente key={mensaje.id}>
+                  {mensaje.modoDemo && (
+                    <Alert
+                      color="yellow"
+                      variant="light"
+                      icon={<IconAlertCircle size={16} />}
+                      title="Modo demostración"
+                      mb="xs"
+                    >
+                      <Text size="xs">
+                        {mensaje.aviso ||
+                          'El servicio de IA no respondió. Estas recomendaciones se generaron localmente.'}
+                      </Text>
+                    </Alert>
+                  )}
+
                   <Text size="sm" style={{ whiteSpace: 'pre-wrap' }}>
                     {mensaje.mensaje}
                   </Text>

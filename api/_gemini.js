@@ -261,6 +261,11 @@ export async function generarSugerencias(mensajes, apiKey, { signal } = {}) {
   let ultimoEstado = 0;
 
   for (const modelo of modelosAConsultar()) {
+    // Si un modelo tarda demasiado, pasamos al siguiente en vez de dejar la
+    // petición colgada (importante en la demo y en el rate limit de Vercel).
+    const tiempoMaximo = AbortSignal.timeout(20_000);
+    const senal = signal ? AbortSignal.any([signal, tiempoMaximo]) : tiempoMaximo;
+
     let response;
     try {
       response = await fetch(
@@ -269,11 +274,16 @@ export async function generarSugerencias(mensajes, apiKey, { signal } = {}) {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: cuerpo,
-          signal,
+          signal: senal,
         },
       );
     } catch (error) {
-      if (error?.name === 'AbortError') throw error;
+      if (signal?.aborted) throw error;
+      if (error?.name === 'TimeoutError' || error?.name === 'AbortError') {
+        ultimoEstado = 504;
+        console.error('[gemini] Tiempo de espera agotado', modelo);
+        continue;
+      }
       throw new GeminiError(502, 'No pudimos conectar con Gemini. Revisa tu conexión e intenta de nuevo.');
     }
 
@@ -304,6 +314,9 @@ export async function generarSugerencias(mensajes, apiKey, { signal } = {}) {
   }
   if (ultimoEstado === 503) {
     throw new GeminiError(503, 'La IA está saturada en este momento. Intenta de nuevo en unos minutos.');
+  }
+  if (ultimoEstado === 504) {
+    throw new GeminiError(504, 'La IA tardó demasiado en responder. Intenta de nuevo en unos momentos.');
   }
   throw new GeminiError(502, 'La IA no pudo responder en este momento. Intenta de nuevo.');
 }

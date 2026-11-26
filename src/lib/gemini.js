@@ -1,10 +1,27 @@
 /**
  * Cliente del asistente de viajes.
- * Habla con /api/gemini (proxy serverless) para que la API key de Gemini
- * se quede en el servidor.
+ *
+ * En local llama a `/api/gemini` (middleware de Vite). En el sitio publicado en
+ * S3 apunta al backend desplegado mediante `VITE_AI_ENDPOINT`, de modo que la
+ * API key de Gemini se quede siempre en el servidor.
+ *
+ * Si el servicio no responde, y `VITE_AI_FALLBACK` no está en `off`, se usan
+ * recomendaciones de demostración (marcadas como tales en la interfaz).
  */
+import { generarSugerenciasMock } from './mockIA';
 
-const ENDPOINT = '/api/gemini';
+const ENDPOINT = import.meta.env.VITE_AI_ENDPOINT || '/api/gemini';
+const USAR_MOCK = import.meta.env.VITE_AI_FALLBACK !== 'off';
+
+/**
+ * Permite forzar el caso de error controlado en la demo: añade `?simularFallo=1`
+ * a la URL y el cliente se comporta como si el servicio estuviera caído.
+ */
+export function falloSimuladoActivo() {
+  if (typeof window === 'undefined') return false;
+  const parametros = new URLSearchParams(window.location.search);
+  return parametros.get('simularFallo') === '1';
+}
 
 function normalizarRespuesta(data) {
   const sugerencias = Array.isArray(data?.sugerencias)
@@ -32,14 +49,12 @@ function normalizarRespuesta(data) {
         : 'Estos son los lugares que mejor encajan con lo que buscas.',
     sugerencias,
     preguntasSugeridas,
+    modoDemo: false,
+    aviso: '',
   };
 }
 
-/**
- * @param {Array<{role: 'user'|'assistant', content: string}>} mensajes
- * @param {{ signal?: AbortSignal }} opciones
- */
-export async function solicitarSugerencias(mensajes, { signal } = {}) {
+async function pedirAlServicio(mensajes, signal) {
   let response;
 
   try {
@@ -69,4 +84,24 @@ export async function solicitarSugerencias(mensajes, { signal } = {}) {
   }
 
   return normalizarRespuesta(data);
+}
+
+/**
+ * @param {Array<{role: 'user'|'assistant', content: string}>} mensajes
+ * @param {{ signal?: AbortSignal }} opciones
+ */
+export async function solicitarSugerencias(mensajes, { signal } = {}) {
+  if (falloSimuladoActivo()) {
+    throw new Error(
+      'No pudimos conectar con el asistente de viajes. Revisa tu conexión e intenta de nuevo. (Fallo simulado para la demostración)',
+    );
+  }
+
+  try {
+    return await pedirAlServicio(mensajes, signal);
+  } catch (error) {
+    if (error?.name === 'AbortError') throw error;
+    if (!USAR_MOCK) throw error;
+    return generarSugerenciasMock(mensajes, error?.message);
+  }
 }

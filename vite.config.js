@@ -33,6 +33,10 @@ function geminiDevApi() {
               res.end(JSON.stringify(payload))
               return this
             },
+            end(payload) {
+              if (!res.writableEnded) res.end(payload)
+              return this
+            },
           }
 
           await geminiHandler(req, adaptador)
