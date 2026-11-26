@@ -26,6 +26,11 @@ const MAX_MENSAJES = 10;
 const MAX_CARACTERES_MENSAJE = 1200;
 const MAX_CARACTERES_TOTAL = 9000;
 
+// Tiempos (ms) para no dejar la petición colgada: por modelo y en total.
+const TIEMPO_POR_MODELO_MS = 12_000;
+const TIEMPO_TOTAL_MAXIMO_MS = 22_000;
+const TIEMPO_MINIMO_POR_INTENTO_MS = 4_000;
+
 const CATALOGO = DESTINOS_ECUADOR.map(({ id, nombre, region, precioBase, descripcion }) => ({
   id,
   nombre,
@@ -41,7 +46,7 @@ Reglas estrictas:
 1. Responde siempre en español neutro, con tono cercano, claro y breve.
 2. Solo recomiendas lugares ubicados en Ecuador. Si preguntan por otro país, aclara amablemente que solo cubres Ecuador.
 3. Prioriza los destinos del CATÁLOGO. Si un lugar encaja pero no está en el catálogo, puedes mencionarlo con destinoId = 0; nunca inventes un id.
-4. Devuelve entre 1 y 4 sugerencias, ordenadas de mejor a peor coincidencia.
+4. Devuelve entre 1 y 2 sugerencias, ordenadas de mejor a peor coincidencia.
 5. En "motivo" explica en 1 o 2 frases por qué el lugar encaja con gustos, presupuesto, duración, clima o compañía de viaje.
 6. "precioEstimado" es un estimado por persona en USD para el plan sugerido, basado en el catálogo cuando exista. No prometas precios reales ni disponibilidad.
 7. "diasSugeridos" debe ser un entero entre 1 y 14.
@@ -61,7 +66,7 @@ const ESQUEMA_RESPUESTA = {
     },
     sugerencias: {
       type: 'ARRAY',
-      description: 'Entre 1 y 4 destinos recomendados, del más al menos relevante.',
+      description: 'Entre 1 y 2 destinos recomendados, del más al menos relevante.',
       items: {
         type: 'OBJECT',
         properties: {
@@ -190,7 +195,7 @@ function normalizarSugerencia(sugerencia) {
 
 function normalizarRespuesta(parsed) {
   const sugerencias = Array.isArray(parsed?.sugerencias)
-    ? parsed.sugerencias.map(normalizarSugerencia).filter(Boolean).slice(0, 4)
+    ? parsed.sugerencias.map(normalizarSugerencia).filter(Boolean).slice(0, 2)
     : [];
 
   const preguntasSugeridas = Array.isArray(parsed?.preguntasSugeridas)
@@ -260,10 +265,22 @@ export async function generarSugerencias(mensajes, apiKey, { signal } = {}) {
 
   let ultimoEstado = 0;
 
+  // Presupuesto global: aunque haya varios modelos de respaldo, la petición no
+  // debe superar ~22 s. Si un modelo consume el tiempo disponible, se corta y se
+  // devuelve un error controlado en vez de encadenar esperas (Vercel también
+  // limita la duración de la función).
+  const limiteGlobal = Date.now() + TIEMPO_TOTAL_MAXIMO_MS;
+
   for (const modelo of modelosAConsultar()) {
+    const restante = limiteGlobal - Date.now();
+    if (restante < TIEMPO_MINIMO_POR_INTENTO_MS) {
+      if (!ultimoEstado) ultimoEstado = 504;
+      break;
+    }
+
     // Si un modelo tarda demasiado, pasamos al siguiente en vez de dejar la
     // petición colgada (importante en la demo y en el rate limit de Vercel).
-    const tiempoMaximo = AbortSignal.timeout(20_000);
+    const tiempoMaximo = AbortSignal.timeout(Math.min(restante, TIEMPO_POR_MODELO_MS));
     const senal = signal ? AbortSignal.any([signal, tiempoMaximo]) : tiempoMaximo;
 
     let response;
