@@ -7,8 +7,8 @@ entregadas. Completa los campos marcados con `TODO` después de cada despliegue.
 
 | Versión | Fecha | Commit | Ejecución de CI | Artifact | URL publicada |
 | --- | --- | --- | --- | --- | --- |
-| v1.0.0 | TODO | TODO | TODO | TODO | TODO |
-| v1.1.0 | TODO | TODO | TODO | TODO | TODO |
+| v1.0.0 | TODO | TODO | TODO | TODO | <http://ecuador-travel.s3-website.us-east-2.amazonaws.com/> |
+| v1.1.0 | TODO | TODO | TODO | TODO | <http://ecuador-travel.s3-website.us-east-2.amazonaws.com/> |
 
 ## v1.0.0 — versión inicial
 
@@ -17,7 +17,7 @@ entregadas. Completa los campos marcados con `TODO` después de cada despliegue.
 - **CI:** `TODO` (enlace a `https://github.com/LoorVera/Ecuador-travel-planner/actions/runs/...`)
 - **Artifact:** `dist` — `TODO` (ID y fecha de expiración)
 - **Build local:** `npm run build` → `dist/`
-- **Publicación:** `scripts/deploy-s3.ps1` → bucket `TODO`
+- **Publicación:** `scripts/deploy-s3.ps1` → bucket `ecuador-travel` (us-east-2)
 - **Cambios incluidos:** frontend React del curso anterior, asistente Gemini con
   validación de entrada/salida, error controlado, CORS y modo demostración.
 - **Capturas:** `docs/evidencias/v1-*.png`
@@ -28,7 +28,7 @@ entregadas. Completa los campos marcados con `TODO` después de cada despliegue.
 - **Tag:** `v1.1.0`
 - **CI:** `TODO`
 - **Artifact:** `dist` — `TODO`
-- **Publicación:** `scripts/deploy-s3.ps1` → bucket `TODO`
+- **Publicación:** `scripts/deploy-s3.ps1` → bucket `ecuador-travel` (us-east-2)
 - **Qué cambió respecto a v1.0.0:**
   - `TODO` (describe el cambio visible: texto, sección o funcionalidad)
 - **Capturas antes/después:** `docs/evidencias/v1-antes.png`,
@@ -43,7 +43,7 @@ git log -1 --oneline
 
 # 2. Build y publicación
 npm run build
-powershell -ExecutionPolicy Bypass -File .\scripts\deploy-s3.ps1 -Bucket MI_BUCKET -SkipBuild
+powershell -ExecutionPolicy Bypass -File .\scripts\deploy-s3.ps1 -Bucket ecuador-travel -Region us-east-2 -SkipBuild
 
 # 3. Etiqueta la versión y súbela
 git tag -a v1.0.0 -m "v1.0.0 - primera version publicada"

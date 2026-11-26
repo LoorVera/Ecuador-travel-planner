@@ -9,11 +9,10 @@ Firebase (Auth + Firestore) · CI con GitHub Actions · despliegue estático en
 Amazon S3 · API serverless en `api/` (Vite en desarrollo · Vercel Functions en
 producción) · Google Gemini.
 
-**Sitio publicado (S3):** `http://TU-BUCKET.s3-website-us-east-1.amazonaws.com`
+**Sitio publicado (S3):** <http://ecuador-travel.s3-website.us-east-2.amazonaws.com/>
 
-> Reemplaza `TU-BUCKET` por el nombre real del bucket antes de entregar. El
-> frontend vive en S3; la función de IA vive aparte (ver
-> [Desplegar el backend de IA](#desplegar-el-backend-de-ia)).
+> Bucket `ecuador-travel`, región `us-east-2`. El frontend vive en S3; la función
+> de IA vive aparte (ver [Desplegar el backend de IA](#desplegar-el-backend-de-ia)).
 
 ---
 
@@ -240,11 +239,11 @@ En resumen:
 ```powershell
 npm run build
 # Opción con AWS CLI v2 (credenciales temporales del lab ya cargadas):
-powershell -ExecutionPolicy Bypass -File .\scripts\deploy-s3.ps1 -Bucket mi-bucket-unico -Region us-east-1
+powershell -ExecutionPolicy Bypass -File .\scripts\deploy-s3.ps1 -Bucket ecuador-travel -Region us-east-2
 ```
 
 - Se sube el contenido de `dist/` (solo estáticos, sin backend).
-- El sitio queda en `http://<bucket>.s3-website-<region>.amazonaws.com`.
+- El sitio queda en <http://ecuador-travel.s3-website.us-east-2.amazonaws.com/>.
 - S3 sirve **HTTP**; para HTTPS hace falta CloudFront.
 - La IA funciona porque el frontend llama al endpoint publicado aparte; si ese
   servicio cae, aparece el aviso de "modo demostración" o el error controlado.
