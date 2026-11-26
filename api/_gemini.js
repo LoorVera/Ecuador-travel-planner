@@ -10,10 +10,10 @@ import { DESTINOS_ECUADOR } from '../src/data/destinos.js';
 // Modelo vigente para claves nuevas. gemini-2.5-flash ya no está disponible
 // para usuarios nuevos (Google responde 404) y gemini-3.8-flash suele estar
 // saturado, por eso se usa 3.6 y se dejan respaldos.
-const MODELO_POR_DEFECTO = 'gemini-3.6-flash';
+const MODELO_POR_DEFECTO = 'gemini-2.5-flash';
 
 // Si el modelo principal no existe (404) o está saturado (503), probamos estos.
-const MODELOS_DE_RESPALDO = ['gemini-3.5-flash', 'gemini-3.8-flash', 'gemini-flash-latest'];
+const MODELOS_DE_RESPALDO = ['gemini-flash-latest'];
 
 // Se lee en tiempo de ejecución para que el middleware de Vite pueda cargar .env.local.
 const obtenerModelo = () => process.env.GEMINI_MODEL || MODELO_POR_DEFECTO;
@@ -27,9 +27,9 @@ const MAX_CARACTERES_MENSAJE = 1200;
 const MAX_CARACTERES_TOTAL = 9000;
 
 // Tiempos (ms) para no dejar la petición colgada: por modelo y en total.
-const TIEMPO_POR_MODELO_MS = 12_000;
-const TIEMPO_TOTAL_MAXIMO_MS = 22_000;
-const TIEMPO_MINIMO_POR_INTENTO_MS = 4_000;
+const TIEMPO_POR_MODELO_MS = 5_000;
+const TIEMPO_TOTAL_MAXIMO_MS = 8_500;
+const TIEMPO_MINIMO_POR_INTENTO_MS = 2_500;
 
 const CATALOGO = DESTINOS_ECUADOR.map(({ id, nombre, region, precioBase, descripcion }) => ({
   id,
@@ -257,7 +257,10 @@ export async function generarSugerencias(mensajes, apiKey, { signal } = {}) {
     contents,
     generationConfig: {
       temperature: 0.7,
-      maxOutputTokens: 4096,
+      maxOutputTokens: 1024,
+      thinkingConfig:{
+        thinkingBudget: 0,
+      },
       responseMimeType: 'application/json',
       responseSchema: ESQUEMA_RESPUESTA,
     },
