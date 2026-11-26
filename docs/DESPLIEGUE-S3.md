@@ -2,8 +2,10 @@
 
 Esta guía publica **solo el frontend estático** (contenido de `dist/`) como sitio
 web en Amazon S3. El backend (`api/gemini`) **no** se despliega aquí: S3 solo
-sirve archivos estáticos, así que el asistente de IA no responderá en el sitio
-publicado (es una limitación esperada y documentada).
+sirve archivos estáticos. Para que el asistente de IA funcione en el sitio
+publicado, `api/` se despliega aparte (por ejemplo en Vercel Functions) y el
+build se genera con `VITE_AI_ENDPOINT` apuntando a esa función. Sin esa variable,
+el widget muestra el aviso de "modo demostración" o el error controlado.
 
 ---
 
@@ -178,8 +180,9 @@ Abre el enlace en el navegador y comprueba:
 - `/mapas` → carga el visor de mapas.
 - La consola del navegador no debe mostrar errores de MIME ni 403.
 
-> El widget de chat con IA no responderá en S3 porque `/api/gemini` no existe
-> ahí. Es lo esperado para este despliegue estático.
+> El widget de chat con IA usa `VITE_AI_ENDPOINT`. Si el build se generó sin esa
+> variable, `/api/gemini` no existe en S3 y el widget mostrará el modo
+> demostración (o el error controlado si `VITE_AI_FALLBACK=off`).
 
 ---
 
@@ -223,7 +226,7 @@ No es necesario para esta entrega si se acepta el enlace HTTP de S3.
 | `/resenas` da `404` | El **Error document** no está en `index.html`. |
 | `BucketAlreadyExists` | El nombre de bucket es global; elige otro. |
 | `AccessDenied` al crear el bucket | Región o permisos del laboratorio; revisa que sea la cuenta/región del lab. |
-| El chat de IA no responde | Normal: no hay backend en S3 (`/api/gemini`). |
+| El chat de IA muestra "Modo demostración" | Falta `VITE_AI_ENDPOINT` en el build o el backend no responde; revisa CORS y la URL de la función. |
 
 ---
 

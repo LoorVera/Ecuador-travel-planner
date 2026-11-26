@@ -5,7 +5,15 @@ interactivo, reseñas y un asistente de viajes con IA (Gemini) que sugiere
 destinos según lo que busca la persona.
 
 **Stack:** React 19 + Vite 8 · Mantine · React Router · Zustand · MapLibre GL ·
-Firebase (Auth + Firestore) · funciones serverless de Vercel · Google Gemini.
+Firebase (Auth + Firestore) · CI con GitHub Actions · despliegue estático en
+Amazon S3 · API serverless en `api/` (Vite en desarrollo · Vercel Functions en
+producción) · Google Gemini.
+
+**Sitio publicado (S3):** `http://TU-BUCKET.s3-website-us-east-1.amazonaws.com`
+
+> Reemplaza `TU-BUCKET` por el nombre real del bucket antes de entregar. El
+> frontend vive en S3; la función de IA vive aparte (ver
+> [Desplegar el backend de IA](#desplegar-el-backend-de-ia)).
 
 ---
 
@@ -56,13 +64,17 @@ frontend ni en el repositorio.
 
 | Elemento | Valor público | Dónde vive |
 | --- | --- | --- |
-| Endpoint del asistente (proxy interno) | `POST /api/gemini` | `src/lib/gemini.js` |
+| Endpoint del asistente (local) | `POST /api/gemini` (middleware de Vite) | `src/lib/gemini.js` |
+| Endpoint del asistente (publicado) | `VITE_AI_ENDPOINT` → función desplegada | `.env.local` + *Variables* de GitHub |
 | Proveedor de IA | Google Gemini — `https://generativelanguage.googleapis.com` | Solo en el servidor (`api/_gemini.js`) |
 | Mapa base | `https://tile.openstreetmap.org/{z}/{x}/{y}.png` (sin clave) | `src/lib/pmtiles.js` |
 | Firebase (config web) | Proyecto `turismo-ecuador-420f5` (variables `VITE_FIREBASE_*`) | `src/config/firebase.js` + `.env.local` |
 
-- El frontend **nunca** llama a Gemini directamente: llama a `/api/gemini`, y el
-  servidor es quien usa la clave.
+- El frontend **nunca** llama a Gemini directamente: llama a `/api/gemini` (local)
+  o a la URL de `VITE_AI_ENDPOINT` (publicado), y el servidor es quien usa la clave.
+- Si el servicio de IA no responde, la app muestra **recomendaciones de
+  demostración** marcadas como tales (`VITE_AI_FALLBACK=mock`, activo por
+  defecto). No son respuestas de Gemini: sirven para que la interfaz no se rompa.
 - La configuración web de Firebase (incluida su `apiKey`) es **pública por
   diseño**: se carga desde variables `VITE_FIREBASE_*` y Vite la inyecta en el
   bundle. La seguridad real se controla con las reglas de Firestore/Storage, no
@@ -88,6 +100,15 @@ VITE_FIREBASE_STORAGE_BUCKET=tu-proyecto.firebasestorage.app
 VITE_FIREBASE_MESSAGING_SENDER_ID=000000000000
 VITE_FIREBASE_APP_ID=1:000000000000:web:0000000000000000000000
 VITE_FIREBASE_MEASUREMENT_ID=G-XXXXXXXXXX
+
+# URL del servicio de IA publicado (vacío en local → usa /api/gemini)
+VITE_AI_ENDPOINT=https://mi-api.vercel.app/api/gemini
+
+# `mock` muestra recomendaciones de demostración si la IA falla; `off` solo error
+VITE_AI_FALLBACK=mock
+
+# Solo servidor: orígenes permitidos por CORS (o * para cualquiera)
+ALLOWED_ORIGINS=*
 ```
 
 - `GEMINI_API_KEY`: clave de Google AI Studio (<https://aistudio.google.com/apikey>).
@@ -95,6 +116,10 @@ VITE_FIREBASE_MEASUREMENT_ID=G-XXXXXXXXXX
 - `GEMINI_MODEL` (opcional): por defecto `gemini-3.6-flash`.
 - `VITE_FIREBASE_*`: configuración web pública de Firebase. No son secretos, pero
   son necesarias para que arranquen Auth y Firestore.
+- `VITE_AI_ENDPOINT` (pública): URL de la función que expone `/api/gemini` en el
+  sitio publicado. Vacía en local.
+- `VITE_AI_FALLBACK` (pública): `mock` (por defecto) o `off`.
+- `ALLOWED_ORIGINS` (solo servidor): lista separada por comas para CORS.
 
 ---
 
@@ -104,13 +129,19 @@ VITE_FIREBASE_MEASUREMENT_ID=G-XXXXXXXXXX
 Navegador (SPA)
   └─ src/ … React 19 + Vite + Mantine + React Router + Zustand
        ├─ src/components/AiChatWidget.jsx   UI del chat flotante
-       │    └─ src/lib/gemini.js            fetch a /api/gemini
+       │    └─ src/lib/gemini.js            fetch a VITE_AI_ENDPOINT
+       │         └─ src/lib/mockIA.js       respaldo si el servicio falla
        ├─ src/config/firebase.js            Auth + Firestore (cliente)
        └─ src/lib/pmtiles.js                mapa base (MapLibre + OSM)
 
-Servidor / API (Vercel Functions)
-  └─ api/gemini.js        endpoint POST /api/gemini (validación + rate limit)
+Servidor / API (`api/`, misma carpeta en local y en Vercel Functions)
+  └─ api/gemini.js        POST /api/gemini (CORS + validación + rate limit)
        └─ api/_gemini.js  prompt, esquema JSON y llamada a Gemini (API key aquí)
+
+Despliegue actual (AWS + GitHub)
+  ├─ .github/workflows/ci.yml   lint + build + artifact dist/ (no despliega)
+  ├─ scripts/deploy-s3.ps1      sube dist/ al bucket S3 (sitio estático)
+  └─ Vercel Functions           publica api/gemini.js (solo el endpoint de IA)
 ```
 
 ### Frontend
@@ -128,16 +159,35 @@ Estado global con **Zustand**; autenticación y persistencia del presupuesto con
 ### Backend / API
 
 No hay un servidor tradicional: el backend son **funciones serverless** dentro de
-`api/`, desplegadas por Vercel:
+`api/`:
 
 - `api/gemini.js`: valida el método/cuerpo, aplica **rate limit** (12 peticiones
   por minuto por IP) y delega en el núcleo.
 - `api/_gemini.js`: arma el prompt, exige salida JSON estructurada y llama a
-  Gemini con la clave del servidor. El prefijo `_` evita que Vercel lo publique
-  como endpoint propio.
+  Gemini con la clave del servidor. El prefijo `_` evita que se publique como
+  endpoint propio si se despliega en Vercel.
 
 En desarrollo, `vite.config.js` monta `/api/gemini` con **el mismo handler**, así
-que no hace falta un backend aparte ni un mock.
+que no hace falta un backend aparte. En el sitio publicado en S3 no hay backend
+(S3 solo sirve estáticos), por eso `api/` se despliega aparte en **Vercel
+Functions** y el frontend apunta allí con `VITE_AI_ENDPOINT`. El handler añade
+**CORS** y responde al *preflight* `OPTIONS` para que el navegador del sitio S3
+pueda llamarlo.
+
+### Validación y manejo de errores
+
+- **Entrada:** el cliente recorta el texto y limita a 600 caracteres por mensaje;
+  el servidor acepta como máximo 10 mensajes, 1200 caracteres por mensaje y 9000
+  en total, descarta vacíos y fuerza roles alternados.
+- **Respuesta:** se exige JSON estructurado a Gemini (`responseSchema`) y se
+  normaliza antes de mostrarlo: tipos, región válida, 1–4 sugerencias, días entre
+  1 y 14 y precios acotados. Un `destinoId` inexistente se convierte en `0`.
+- **Fallos:** los errores de red, cuota (`429`), modelo retirado (`404`) o
+  saturación (`503`) se traducen a mensajes claros. La interfaz muestra un aviso
+  rojo con botón **Reintentar** en lugar de romperse.
+- **Demostración:** con `?simularFallo=1` se fuerza el caso de error controlado;
+  con `VITE_AI_FALLBACK=mock` (por defecto) una caída del servicio muestra
+  recomendaciones locales marcadas como **modo demostración**.
 
 ### Proveedor de IA y simulador (mock)
 
@@ -145,40 +195,47 @@ que no hace falta un backend aparte ni un mock.
 - **Modelo por defecto:** `gemini-3.6-flash`, con respaldo automático a
   `gemini-3.5-flash`, `gemini-3.8-flash` y `gemini-flash-latest` si el principal
   está retirado (404) o saturado (503).
-- **Mock:** **no se usa simulador**. Las respuestas son reales de Gemini. Si no
-  hay clave configurada, `POST /api/gemini` responde `500` con un mensaje claro;
-  no hay modo offline.
+- **Mock:** sí, **solo como respaldo** (`src/lib/mockIA.js`). Las respuestas
+  normales son reales de Gemini; el mock se usa cuando el servicio no responde y
+  la interfaz lo etiqueta como "Modo demostración". Se puede desactivar con
+  `VITE_AI_FALLBACK=off` para ver únicamente el error controlado.
 
 ### De `git push` al sitio publicado
 
-1. **Push:** `git push` envía los cambios a GitHub.
-2. **Instalación (CI — GitHub Actions):** se dispara `.github/workflows/ci.yml`
-   en cada push (y en Pull Requests a `main`). Hace `actions/checkout`, configura
-   Node 24 con caché de npm y ejecuta `npm ci`.
-3. **Build + artifact (CI):** corre `npm run lint` y `npm run build` (Vite →
-   `dist/`). El `dist/` se sube como **artifact** del workflow
-   (`actions/upload-artifact`, retención 7 días) para inspección/descarga.
-4. **Build de hosting (Vercel):** Vercel está conectado al repositorio y, al
-   detectar el push, ejecuta su propio `npm run build` (Vite → `dist/`).
-5. **Hosting:** los archivos estáticos de `dist/` se publican como sitio del
-   proyecto. `vercel.json` reescribe las rutas del SPA hacia `index.html`
-   (excepto `/api/*`) para que `/resenas` y `/mapas` funcionen al recargar.
-6. **CDN:** la red de borde de Vercel (**CDN**) cachea y sirve esos archivos por
-   **HTTPS** desde el dominio del proyecto.
-7. **API:** `api/gemini.js` se despliega como función serverless en el mismo
-   proyecto y se invoca desde `/api/gemini`.
+1. **Push:** `git push` envía los cambios a GitHub
+   (`LoorVera/Ecuador-travel-planner`).
+2. **CI (GitHub Actions):** `.github/workflows/ci.yml` se dispara en cada push a
+   `main`, en Pull Requests y manualmente (`workflow_dispatch`). Hace
+   `actions/checkout`, configura Node 24 con caché de npm y ejecuta `npm ci`.
+3. **Validación + artifact (CI):** corre `npm run lint` y `npm run build` (Vite →
+   `dist/`) con las `VITE_FIREBASE_*` y `VITE_AI_ENDPOINT` inyectadas desde las
+   *Variables* del repositorio. El `dist/` se sube como **artifact**
+   (`actions/upload-artifact`, retención 14 días) y es el mismo build que se
+   publica en S3.
+4. **Despliegue (manual, AWS):** el frontend se publica en **Amazon S3** con
+   `scripts/deploy-s3.ps1` (o subiendo el contenido de `dist/` desde la consola).
+   Ver [`docs/DESPLIEGUE-S3.md`](docs/DESPLIEGUE-S3.md).
+5. **Hosting:** S3 sirve `index.html`, `assets/` y los SVG. Las rutas `/resenas`
+   y `/mapas` funcionan al recargar gracias al **Error document = `index.html`**
+   configurado en el bucket; no hay rewrite de servidor como en Vercel.
+6. **API de IA:** `api/gemini.js` se publica aparte en **Vercel Functions** y el
+   frontend lo llama con `VITE_AI_ENDPOINT`. El endpoint aplica CORS, rate limit
+   y guarda `GEMINI_API_KEY` solo en el servidor.
+7. **CDN:** el *endpoint* de sitio web de S3 **no es una CDN**; sirve los archivos
+   directamente desde la región del bucket. Los assets con hash se cachean en el
+   navegador (`Cache-Control: public, max-age=31536000, immutable`) y `index.html`
+   se sirve con `no-cache`. Para una CDN real y HTTPS habría que anteponer
+   **CloudFront** (ver Limitaciones).
 
-> El CI **valida** lint y build, pero **no despliega**: la publicación la hace
-> Vercel al recibir el push. En *Settings → Environment Variables* de Vercel
-> deben estar `GEMINI_API_KEY` (secreto, solo servidor) y las `VITE_FIREBASE_*`
-> (públicas, necesarias en el build del frontend). Sin las `VITE_FIREBASE_*`, la
-> app compila pero falla al iniciar.
+> El CI **valida** lint y build, pero **no despliega**: la publicación en S3 es un
+> paso manual. Si faltan las variables públicas, el job falla a propósito para no
+> generar un artifact que no arranque en el navegador.
 
-### Despliegue alternativo en AWS S3 (solo frontend)
+### Despliegue en AWS S3 (frontend)
 
-Para publicar **únicamente el frontend estático** en Amazon S3 (por ejemplo en
-AWS Academy Learner Lab) usa la guía
-[`docs/DESPLIEGUE-S3.md`](docs/DESPLIEGUE-S3.md). En resumen:
+El sitio publicado es el **frontend estático** en Amazon S3 (AWS Academy Learner
+Lab). La guía completa está en [`docs/DESPLIEGUE-S3.md`](docs/DESPLIEGUE-S3.md).
+En resumen:
 
 ```powershell
 npm run build
@@ -189,7 +246,32 @@ powershell -ExecutionPolicy Bypass -File .\scripts\deploy-s3.ps1 -Bucket mi-buck
 - Se sube el contenido de `dist/` (solo estáticos, sin backend).
 - El sitio queda en `http://<bucket>.s3-website-<region>.amazonaws.com`.
 - S3 sirve **HTTP**; para HTTPS hace falta CloudFront.
-- El asistente de IA no funciona en S3 porque `/api/gemini` no existe ahí.
+- La IA funciona porque el frontend llama al endpoint publicado aparte; si ese
+  servicio cae, aparece el aviso de "modo demostración" o el error controlado.
+
+### Desplegar el backend de IA
+
+1. Importa el repositorio en **Vercel** (detecta Vite y publica `api/` como
+   función). La copia estática de Vercel **no** se usa como sitio: el sitio
+   entregable sigue siendo S3.
+2. En *Settings → Environment Variables* define `GEMINI_API_KEY` (secreto),
+   `GEMINI_MODEL` (opcional) y `ALLOWED_ORIGINS` (opcional).
+3. Copia la URL de la función, con la forma
+   `https://<proyecto>.vercel.app/api/gemini`.
+4. Añade esa URL como `VITE_AI_ENDPOINT` en `.env.local` y en las *Variables* de
+   GitHub, y vuelve a compilar y desplegar en S3.
+
+Alternativas al mismo endpoint: Cloudflare Worker o AWS Lambda + Function URL
+(esta última requiere empaquetar el handler y permisos del laboratorio).
+
+---
+
+## Registro de versiones y evidencias
+
+- [`docs/REGISTRO-VERSIONES.md`](docs/REGISTRO-VERSIONES.md): qué cambió entre la
+  versión 1 y la versión 2, con commit, ejecución de CI, artifact y capturas.
+- [`docs/evidencias/`](docs/evidencias/): capturas del sitio publicado, del
+  análisis de IA, del error controlado y del CI/artifact.
 
 ---
 
@@ -198,9 +280,10 @@ powershell -ExecutionPolicy Bypass -File .\scripts\deploy-s3.ps1 -Bucket mi-buck
 - **Dependencia de un servicio externo (Gemini):** cuotas, latencia y caídas
   afectan al asistente. Google retiró `gemini-2.5-flash` para claves nuevas
   (HTTP 404) y algunos modelos responden `503` por alta demanda; por eso hay
-  modelos de respaldo, pero si todos fallan el chat no responde.
-- **Sin simulador / modo offline:** si falta `GEMINI_API_KEY`, el endpoint
-  devuelve `500`. No hay datos de IA simulados para trabajar sin red.
+  modelos de respaldo, pero si todos fallan se activa el modo demostración.
+- **El modo demostración no es IA real:** si el endpoint falla y
+  `VITE_AI_FALLBACK=mock`, las sugerencias se generan con el catálogo local y la
+  interfaz lo indica. Sirve para no romper la demo, no como sustituto de Gemini.
 - **Rate limit en memoria:** los 12 req/min por IP se guardan en memoria del
   proceso; no se comparten entre instancias ni sobreviven a un *cold start*, por
   lo que no es un límite global fiable.
@@ -211,12 +294,17 @@ powershell -ExecutionPolicy Bypass -File .\scripts\deploy-s3.ps1 -Bucket mi-buck
 - **Reglas de Firebase:** la configuración web es pública; la protección real
   depende de las reglas de Firestore/Storage, que se administran en la consola de
   Firebase y **no** forman parte de este repositorio.
-- **Hosting asumido en Vercel:** el flujo descrito usa funciones serverless de
-  Vercel. Si se alojara solo en almacenamiento estático (por ejemplo S3), el
-  endpoint de sitio web de S3 es **HTTP** y para **HTTPS** haría falta otra capa
-  como **CloudFront**; además las funciones `/api/*` requerirían otro servicio
-  (API Gateway + Lambda), y en entornos tipo AWS Academy hay restricciones de
-  permisos/región que pueden impedirlo.
+- **Hosting estático en S3:** S3 sirve **HTTP** y no ejecuta `/api/*`. El backend
+  de IA se publica aparte (Vercel Functions) porque en AWS Academy crear API
+  Gateway + Lambda puede chocar con restricciones de permisos/región.
+- **Sin CDN real:** el *endpoint* de sitio web de S3 sirve desde la región del
+  bucket. Para **HTTPS** y caché de borde haría falta **CloudFront** con origen en
+  el bucket y *custom error responses* 403/404 → `/index.html`.
+- **Rutas del SPA en S3:** dependen del *Error document = `index.html`* del
+  bucket. Al recargar `/resenas` o `/mapas` el usuario ve la página correcta,
+  pero S3 responde con código **404**; para un `200` real hace falta CloudFront.
+- **Credenciales del laboratorio:** las de AWS Academy caducan al terminar la
+  sesión, así que el despliegue en S3 es manual y no se automatiza (CD opcional).
 - **Mapa base público:** depende de los servidores de teselas de OpenStreetMap
   (política de uso y sin SLA); no se usa un proveedor con clave ni CDN propia.
 - **Idioma y alcance:** el asistente solo recomienda destinos de Ecuador y no
