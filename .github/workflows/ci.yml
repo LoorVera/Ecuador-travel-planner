@@ -6,6 +6,8 @@ on:
     types: [opened, synchronize, reopened]
   push:
     branches: [main]
+  # Permite relanzar el workflow desde la pestaña Actions sin hacer un commit.
+  workflow_dispatch:
 
 # El CI solo necesita leer el repositorio.
 permissions:
@@ -38,8 +40,43 @@ jobs:
       - name: Validar la calidad del código con ESLint
         run: npm run lint
 
+      - name: Ejecutar pruebas de validación del asistente
+        run: npm test
+
+      # Las VITE_FIREBASE_* son públicas, pero no viven en el repositorio: sin
+      # ellas el build compila y el artefacto no arranca en el navegador.
+      # Se configuran en Settings -> Secrets and variables -> Actions -> Variables.
+      - name: Comprobar variables públicas de build
+        env:
+          VITE_FIREBASE_API_KEY: ${{ vars.VITE_FIREBASE_API_KEY }}
+          VITE_FIREBASE_AUTH_DOMAIN: ${{ vars.VITE_FIREBASE_AUTH_DOMAIN }}
+          VITE_FIREBASE_PROJECT_ID: ${{ vars.VITE_FIREBASE_PROJECT_ID }}
+          VITE_FIREBASE_APP_ID: ${{ vars.VITE_FIREBASE_APP_ID }}
+          VITE_AI_ENDPOINT: ${{ vars.VITE_AI_ENDPOINT }}
+        run: |
+          set -e
+          for nombre in VITE_FIREBASE_API_KEY VITE_FIREBASE_AUTH_DOMAIN VITE_FIREBASE_PROJECT_ID VITE_FIREBASE_APP_ID; do
+            if [ -z "${!nombre}" ]; then
+              echo "::error::Falta la variable de repositorio $nombre. Configúrala en Settings -> Secrets and variables -> Actions -> Variables."
+              exit 1
+            fi
+          done
+          if [ -z "$VITE_AI_ENDPOINT" ]; then
+            echo "::warning::VITE_AI_ENDPOINT está vacío: el artefacto usará /api/gemini y el sitio mostrará el modo demostración."
+          fi
+
       - name: Compilar la aplicación React
         run: npm run build
+        env:
+          VITE_FIREBASE_API_KEY: ${{ vars.VITE_FIREBASE_API_KEY }}
+          VITE_FIREBASE_AUTH_DOMAIN: ${{ vars.VITE_FIREBASE_AUTH_DOMAIN }}
+          VITE_FIREBASE_PROJECT_ID: ${{ vars.VITE_FIREBASE_PROJECT_ID }}
+          VITE_FIREBASE_STORAGE_BUCKET: ${{ vars.VITE_FIREBASE_STORAGE_BUCKET }}
+          VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ vars.VITE_FIREBASE_MESSAGING_SENDER_ID }}
+          VITE_FIREBASE_APP_ID: ${{ vars.VITE_FIREBASE_APP_ID }}
+          VITE_FIREBASE_MEASUREMENT_ID: ${{ vars.VITE_FIREBASE_MEASUREMENT_ID }}
+          VITE_AI_ENDPOINT: ${{ vars.VITE_AI_ENDPOINT }}
+          VITE_AI_FALLBACK: ${{ vars.VITE_AI_FALLBACK || 'mock' }}
 
       - name: Guardar la carpeta dist como artefacto
         uses: actions/upload-artifact@v4
@@ -47,4 +84,5 @@ jobs:
           name: dist
           path: dist/
           if-no-files-found: error
-          retention-days: 7
+          # 14 días para que el artefacto siga disponible durante la entrega.
+          retention-days: 14
