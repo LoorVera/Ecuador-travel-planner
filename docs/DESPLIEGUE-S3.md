@@ -174,12 +174,13 @@ powershell -ExecutionPolicy Bypass -File .\scripts\deploy-s3.ps1 -Bucket mi-buck
 
 ## Opción C — Despliegue continuo con GitHub Actions
 
-El workflow `.github/workflows/ci.yml` genera el artefacto `dist/`. El workflow
-independiente `.github/workflows/deploy.yml` se dispara con `workflow_run`
-cuando el CI termina en verde, y **solo publica `main`** (nunca Pull Requests).
-Hace: descargar el artefacto de ese run → autenticarse → crear/verificar el
-bucket → activar hosting estático y lectura pública → `aws s3 sync` → mostrar la
-URL en el resumen del run.
+El workflow `.github/workflows/ci.yml` genera el artefacto `dist/` en el job
+`calidad-y-build`. El job `desplegar-s3` del mismo workflow tiene
+`needs: calidad-y-build` y un `if` que solo lo habilita en `push` a `main`:
+**nunca corre en Pull Requests**. Ese job llama al workflow reutilizable
+`.github/workflows/deploy.yml`, que descarga el artefacto del mismo run →
+autenticarse → verificar el bucket → activar hosting estático y lectura pública
+→ `aws s3 sync` → mostrar la URL en el resumen del run.
 
 ### C.1 Registrar credenciales (Secrets)
 
@@ -231,11 +232,12 @@ git commit -m "Deploy continuo a S3"
 git push origin main
 ```
 
-Abre la pestaña **Actions**: verás el run de `CI - Ecuador Travel Planner` en
-verde y, justo después, el run de `CD - Ecuador Travel Planner (S3)`, que imprime
+Abre la pestaña **Actions**: verás un run de `CI/CD - Ecuador Travel Planner`
+con dos jobs: `calidad-y-build` y, después, `desplegar-s3`. El segundo imprime
 la URL (`http://<bucket>.s3-website-<region>.amazonaws.com`) en el resumen. Para
-volver a publicar sin hacer commit, relanza el run del CI desde Actions: el CD se
-dispara de nuevo. Los Pull Requests solo ejecutan el CI; no despliegan.
+volver a publicar sin hacer commit, relanza el run desde Actions. Los Pull
+Requests solo ejecutan `calidad-y-build`: el job de despliegue aparece como
+*skipped* porque su condición `push` a `main` no se cumple.
 
 > Si el laboratorio bloquea “Block all public access”, el paso de permisos falla
 > con un mensaje explicativo. En ese caso usa la Opción A/B y entrega la

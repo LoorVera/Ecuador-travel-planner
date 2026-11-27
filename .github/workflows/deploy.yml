@@ -1,21 +1,18 @@
 name: CD - Ecuador Travel Planner (S3)
 
-# Se dispara cuando termina el workflow de CI y publica el artefacto generado
-# en ese mismo run. Así el despliegue usa exactamente el build que validó ESLint
-# y las pruebas, sin volver a compilar.
+# Workflow reutilizable. Lo invoca el job `desplegar-s3` de ci.yml con
+# `needs: calidad-y-build`, solo en push a main. Así ningún Pull Request puede
+# publicar y el despliegue siempre depende del job de compilación en verde.
 on:
-  workflow_run:
-    workflows: ["CI - Ecuador Travel Planner"]
-    types: [completed]
+  workflow_call:
 
-# actions: read es necesario para descargar el artefacto de otro run.
 permissions:
   actions: read
   contents: read
 
-# Un mismo run de CI produce un solo despliegue; no cancelar despliegues en curso.
+# Un mismo run produce un solo despliegue; no cancelar despliegues en curso.
 concurrency:
-  group: deploy-${{ github.event.workflow_run.id }}
+  group: deploy-${{ github.run_id }}
   cancel-in-progress: false
 
 jobs:
@@ -24,14 +21,17 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
-    # Solo despliegues de main, nunca de Pull Requests ni de forks.
-    if: >-
-      github.event.workflow_run.conclusion == 'success' &&
-      github.event.workflow_run.head_branch == 'main' &&
-      github.event.workflow_run.event != 'pull_request' &&
-      github.event.workflow_run.head_repository.full_name == github.repository
-
     steps:
+      - name: Verificar evento y rama antes de publicar
+        env:
+          EVENTO: ${{ github.event_name }}
+          REF: ${{ github.ref }}
+        run: |
+          set -e
+          [ "$EVENTO" = "push" ] || { echo "::error::El despliegue solo corre en push a main"; exit 1; }
+          [ "$REF" = "refs/heads/main" ] || { echo "::error::Solo se despliega la rama main"; exit 1; }
+          echo "Despliegue autorizado: $EVENTO en $REF"
+
       - name: Validar secretos y variables de despliegue
         env:
           S3_BUCKET_NAME: ${{ vars.S3_BUCKET_NAME }}
@@ -47,13 +47,11 @@ jobs:
             fi
           done
 
-      - name: Descargar artefacto del run de CI
+      - name: Descargar artefacto del job de compilación
         uses: actions/download-artifact@v4
         with:
           name: dist
           path: dist
-          run-id: ${{ github.event.workflow_run.id }}
-          github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Configurar credenciales AWS
         uses: aws-actions/configure-aws-credentials@v4

@@ -1,4 +1,4 @@
-name: CI - Ecuador Travel Planner
+name: CI/CD - Ecuador Travel Planner
 
 on:
   pull_request:
@@ -12,6 +12,7 @@ on:
 # El CI solo necesita leer el repositorio.
 permissions:
   contents: read
+  actions: read
 
 # Si llegan nuevos commits a la misma PR, cancela la ejecución anterior.
 concurrency:
@@ -86,3 +87,12 @@ jobs:
           if-no-files-found: error
           # 14 días para que el artefacto siga disponible durante la entrega.
           retention-days: 14
+
+  # El despliegue NUNCA corre en Pull Requests: solo cuando el push a main
+  # terminó con éxito en el job de compilación (needs: calidad-y-build).
+  desplegar-s3:
+    name: Desplegar en Amazon S3
+    needs: calidad-y-build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    uses: ./.github/workflows/deploy.yml
+    secrets: inherit

@@ -144,9 +144,10 @@ Servidor / API (`api/`, misma carpeta en local y en Vercel Functions)
        └─ api/_gemini.js  prompt, esquema JSON y llamada a Gemini (API key aquí)
 
 Despliegue actual (AWS + GitHub)
-  ├─ .github/workflows/ci.yml       lint + build + artifact dist/
-  ├─ .github/workflows/deploy.yml   workflow_run del CI → bucket, hosting,
-  │                                 permisos y sync (solo main, nunca PR)
+  ├─ .github/workflows/ci.yml       lint + tests + build + artifact dist/
+  │                                 └─ job desplegar-s3 (needs: build, solo push main)
+  └─ .github/workflows/deploy.yml   workflow reutilizable llamado por ci.yml:
+                                    verifica bucket, permisos y sync (nunca PR)
   ├─ scripts/deploy-s3.ps1          alternativa manual: sube dist/ al bucket S3
   └─ Vercel Functions               publica api/gemini.js (solo el endpoint de IA)
 ```
@@ -221,13 +222,13 @@ pueda llamarlo.
    *Variables* del repositorio. El `dist/` se sube como **artifact**
    (`actions/upload-artifact`, retención 14 días) y es el mismo build que se
    publica en S3.
-4. **Despliegue continuo (AWS):** al terminar el CI en verde se dispara
-   `.github/workflows/deploy.yml` (`workflow_run`). Ese workflow descarga el
-   artefacto `dist` **del mismo run**, se autentica con tus credenciales AWS
-   (Access Key + Secret Key), asegura el bucket (lo crea si no existe), activa el
-   hosting estático y la lectura pública, y sincroniza los archivos con
-   `aws s3 sync`. Alternativa manual: `scripts/deploy-s3.ps1` o la consola. Ver
-   [`docs/DESPLIEGUE-S3.md`](docs/DESPLIEGUE-S3.md).
+4. **Despliegue continuo (AWS):** el job `desplegar-s3` de `ci.yml` usa
+   `needs: calidad-y-build` y un `if` que solo lo permite en `push` a `main`.
+   Llama al workflow reutilizable `.github/workflows/deploy.yml`, que descarga
+   el artefacto `dist` **del mismo run**, valida las credenciales AWS, verifica
+   que el bucket sea accesible, activa el hosting estático y la lectura pública,
+   y sincroniza con `aws s3 sync`. Alternativa manual: `scripts/deploy-s3.ps1`.
+   Ver [`docs/DESPLIEGUE-S3.md`](docs/DESPLIEGUE-S3.md).
 5. **Hosting:** S3 sirve `index.html`, `assets/` y los SVG. Las rutas `/resenas`
    y `/mapas` funcionan al recargar gracias al **Error document = `index.html`**
    configurado en el bucket; no hay rewrite de servidor como en Vercel.
@@ -240,20 +241,21 @@ pueda llamarlo.
    se sirve con `no-cache`. Para una CDN real y HTTPS habría que anteponer
    **CloudFront** (ver Limitaciones).
 
-> El workflow de despliegue solo corre cuando el CI de `main` termina en verde
-> (incluidas las reejecuciones manuales del CI); los Pull Requests únicamente
-> validan lint y build. Si faltan las variables públicas o las credenciales, el
-> workflow falla a propósito para no publicar un artifact que no arranque en el
-> navegador.
+> El despliegue tiene dos compuertas: `if` (solo `push` a `main`, nunca Pull
+> Requests) y `needs: calidad-y-build` (solo si pasaron lint, 22 pruebas y
+> build). Los Pull Requests ejecutan las validaciones pero **no publican**.
+> Si faltan variables públicas o credenciales, el pipeline falla a propósito
+> para no publicar un artifact que no arranque en el navegador.
 
 ### Despliegue en AWS S3 (frontend)
 
 El sitio publicado es el **frontend estático** en Amazon S3. La guía completa
 está en [`docs/DESPLIEGUE-S3.md`](docs/DESPLIEGUE-S3.md).
 
-**Automático (CD):** al hacer `push` a `main`, `.github/workflows/deploy.yml`
-publica el mismo artefacto generado por el CI. Configura una vez en el
-repositorio (*Settings → Secrets and variables → Actions*):
+**Automático (CD):** al hacer `push` a `main`, el job `desplegar-s3` de
+`.github/workflows/ci.yml` publica el mismo artefacto generado en ese run.
+Configura una vez en el repositorio (*Settings → Secrets and variables →
+Actions*):
 
 | Tipo | Nombre | Valor |
 | --- | --- | --- |
