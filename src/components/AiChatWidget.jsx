@@ -248,7 +248,7 @@ export default function AiChatWidget() {
                   <Group gap="xs" mb={6}>
                     <IconSparkles size={18} color="#228be6" />
                     <Text fw={600} size="sm">
-                      ¡Hola! Soy RutaBot
+                      ¡Hola! Soy tu asistente de viajes por Ecuador.
                     </Text>
                   </Group>
                   <Text size="sm">
