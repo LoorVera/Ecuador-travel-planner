@@ -64,7 +64,7 @@ frontend ni en el repositorio.
 | Elemento | Valor público | Dónde vive |
 | --- | --- | --- |
 | Endpoint del asistente (local) | `POST /api/gemini` (middleware de Vite) | `src/lib/gemini.js` |
-| Endpoint del asistente (publicado) | <https://ecuador-travel-seven.vercel.app/api/gemini> (`VITE_AI_ENDPOINT`) | `.env.local` + *Variables* de GitHub |
+| Endpoint del asistente (publicado) | <https://ecuador-travel-planner.vercel.app/api/gemini> (`VITE_AI_ENDPOINT`) | *Variables* de GitHub |
 | Proveedor de IA | Google Gemini — `https://generativelanguage.googleapis.com` | Solo en el servidor (`api/_gemini.js`) |
 | Mapa base | `https://tile.openstreetmap.org/{z}/{x}/{y}.png` (sin clave) | `src/lib/pmtiles.js` |
 | Firebase (config web) | Proyecto `turismo-ecuador-420f5` (variables `VITE_FIREBASE_*`) | `src/config/firebase.js` + `.env.local` |
@@ -101,7 +101,7 @@ VITE_FIREBASE_APP_ID=1:000000000000:web:0000000000000000000000
 VITE_FIREBASE_MEASUREMENT_ID=G-XXXXXXXXXX
 
 # URL del servicio de IA publicado (vacío en local → usa /api/gemini)
-VITE_AI_ENDPOINT=https://ecuador-travel-seven.vercel.app/api/gemini
+VITE_AI_ENDPOINT=https://ecuador-travel-planner.vercel.app/api/gemini
 
 # `mock` muestra recomendaciones de demostración si la IA falla; `off` solo error
 VITE_AI_FALLBACK=mock
@@ -119,8 +119,10 @@ ALLOWED_ORIGINS=*
 - `VITE_FIREBASE_*`: configuración web pública de Firebase. No son secretos, pero
   son necesarias para que arranquen Auth y Firestore.
 - `VITE_AI_ENDPOINT` (pública): URL de la función que expone `/api/gemini` en el
-  sitio publicado. Producción: `https://ecuador-travel-seven.vercel.app/api/gemini`.
-  Vacía en local (usa el middleware de Vite).
+  sitio publicado. Producción: `https://ecuador-travel-planner.vercel.app/api/gemini`.
+  Vacía en local (usa el middleware de Vite). Usa el dominio canónico de Vercel:
+  la URL directa del deployment puede estar protegida por Vercel Authentication
+  y devolver `401` al navegador.
 - `VITE_AI_FALLBACK` (pública): `mock` (por defecto) o `off`.
 - `ALLOWED_ORIGINS` (solo servidor): lista separada por comas para CORS.
 
@@ -289,12 +291,15 @@ powershell -ExecutionPolicy Bypass -File .\scripts\deploy-s3.ps1 -Bucket ecuador
    existe con un valor antiguo (`gemini-2.5-flash`), actualízalo a
    `gemini-3.5-flash-lite` o elimínala: su valor sobrescribe el default del
    código. Después de cambiar variables, vuelve a desplegar la función.
-3. Copia la URL de la función, con la forma
+3. Usa el **dominio canónico** de Vercel, con la forma
    `https://<proyecto>.vercel.app/api/gemini`. Backend en producción:
-   **`https://ecuador-travel-seven.vercel.app/api/gemini`** (dominio alternativo
-   del mismo proyecto: `https://ecuador-travel-l8chgglth-loorveras-projects.vercel.app/api/gemini`).
-4. Añade esa URL como `VITE_AI_ENDPOINT` en `.env.local` y como *Variable* de
-   GitHub (`VITE_AI_ENDPOINT`), y vuelve a compilar y desplegar en S3.
+   **`https://ecuador-travel-planner.vercel.app/api/gemini`**. La URL directa
+   del deployment (`...-od2t0sggq-loorveras-projects.vercel.app`) está protegida
+   por Vercel Authentication y responde `401` a peticiones públicas: no la uses
+   como `VITE_AI_ENDPOINT`.
+4. Añade esa URL como *Variable* de GitHub (`VITE_AI_ENDPOINT`) y vuelve a
+   compilar y desplegar en S3. En `.env.local` se deja vacía para desarrollar
+   contra el middleware local.
 
 Alternativas al mismo endpoint: Cloudflare Worker o AWS Lambda + Function URL
 (esta última requiere empaquetar el handler y permisos del laboratorio).
