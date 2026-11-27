@@ -7,13 +7,13 @@
  */
 import { DESTINOS_ECUADOR } from '../src/data/destinos.js';
 
-// Modelo vigente para claves nuevas. gemini-2.5-flash ya no está disponible
-// para usuarios nuevos (Google responde 404) y gemini-3.8-flash suele estar
-// saturado, por eso se usa 3.6 y se dejan respaldos.
-const MODELO_POR_DEFECTO = 'gemini-2.5-flash';
+// Google deprecó gemini-2.5-flash el 2 de noviembre de 2026 y recomienda
+// migrar proyectos nuevos a gemini-3.5-flash-lite o gemini-3.8-flash.
+const MODELO_POR_DEFECTO = 'gemini-3.5-flash-lite';
 
 // Si el modelo principal no existe (404) o está saturado (503), probamos estos.
-const MODELOS_DE_RESPALDO = ['gemini-flash-latest'];
+// Se evitan alias `*-latest`: apuntan a modelos preview y pueden cambiar sin aviso.
+const MODELOS_DE_RESPALDO = ['gemini-3.8-flash', 'gemini-3.6-flash'];
 
 // Se lee en tiempo de ejecución para que el middleware de Vite pueda cargar .env.local.
 const obtenerModelo = () => process.env.GEMINI_MODEL || MODELO_POR_DEFECTO;
@@ -27,9 +27,10 @@ const MAX_CARACTERES_MENSAJE = 1200;
 const MAX_CARACTERES_TOTAL = 9000;
 
 // Tiempos (ms) para no dejar la petición colgada: por modelo y en total.
-const TIEMPO_POR_MODELO_MS = 5_000;
-const TIEMPO_TOTAL_MAXIMO_MS = 8_500;
-const TIEMPO_MINIMO_POR_INTENTO_MS = 2_500;
+// Los modelos 3.x pueden tardar un poco más que los 2.5 al razonar.
+const TIEMPO_POR_MODELO_MS = 10_000;
+const TIEMPO_TOTAL_MAXIMO_MS = 22_000;
+const TIEMPO_MINIMO_POR_INTENTO_MS = 3_000;
 
 const CATALOGO = DESTINOS_ECUADOR.map(({ id, nombre, region, precioBase, descripcion }) => ({
   id,
@@ -256,11 +257,11 @@ export async function generarSugerencias(mensajes, apiKey, { signal } = {}) {
     systemInstruction: { parts: [{ text: INSTRUCCION_SISTEMA }] },
     contents,
     generationConfig: {
-      temperature: 0.7,
-      maxOutputTokens: 1024,
-      thinkingConfig:{
-        thinkingBudget: 0,
-      },
+      // `temperature` está obsoleto en Gemini 3.x; `thinkingBudget` fue
+      // reemplazado por `thinkingLevel` (low es válido en todos los modelos
+      // de esta cadena). Los tokens de pensamiento cuentan en maxOutputTokens.
+      maxOutputTokens: 2048,
+      thinkingConfig: { thinkingLevel: 'low' },
       responseMimeType: 'application/json',
       responseSchema: ESQUEMA_RESPUESTA,
     },
@@ -288,15 +289,15 @@ export async function generarSugerencias(mensajes, apiKey, { signal } = {}) {
 
     let response;
     try {
-      response = await fetch(
-        `${URL_API}/${encodeURIComponent(modelo)}:generateContent?key=${encodeURIComponent(apiKey)}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: cuerpo,
-          signal: senal,
+      response = await fetch(`${URL_API}/${encodeURIComponent(modelo)}:generateContent`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-goog-api-key': apiKey,
         },
-      );
+        body: cuerpo,
+        signal: senal,
+      });
     } catch (error) {
       if (signal?.aborted) throw error;
       if (error?.name === 'TimeoutError' || error?.name === 'AbortError') {
@@ -319,8 +320,11 @@ export async function generarSugerencias(mensajes, apiKey, { signal } = {}) {
     if (response.status === 429) {
       throw new GeminiError(429, 'La IA está recibiendo muchas solicitudes. Espera un momento e intenta de nuevo.');
     }
-    if (response.status === 400 || response.status === 401) {
-      throw new GeminiError(502, 'La clave de Gemini no es válida o la solicitud fue rechazada. Revisa GEMINI_API_KEY.');
+    if (response.status === 400) {
+      throw new GeminiError(502, 'Gemini rechazó la solicitud. Revisa GEMINI_MODEL y la configuración del asistente.');
+    }
+    if (response.status === 401) {
+      throw new GeminiError(502, 'La clave de Gemini no es válida. Revisa GEMINI_API_KEY.');
     }
     if (response.status === 403) {
       throw new GeminiError(502, 'La clave de Gemini no tiene permisos para usar este modelo.');

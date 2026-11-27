@@ -11,16 +11,17 @@ const solicitudesPorIp = new Map();
 
 // Orígenes permitidos por CORS. `*` por defecto porque el endpoint no usa
 // cookies ni credenciales; se puede restringir con ALLOWED_ORIGINS.
-const ORIGENES_PERMITIDOS = (process.env.ALLOWED_ORIGINS || '*')
-  .split(',')
-  .map((origen) => origen.trim())
-  .filter(Boolean);
+// Se lee en cada petición para que el middleware de Vite pueda cargar .env.local.
+const obtenerOrigenesPermitidos = () =>
+  (process.env.ALLOWED_ORIGINS || '*')
+    .split(',')
+    .map((origen) => origen.trim())
+    .filter(Boolean);
 
 function aplicarCors(req, res) {
   const origen = req.headers?.origin;
-  const permitido = ORIGENES_PERMITIDOS.includes('*')
-    ? '*'
-    : ORIGENES_PERMITIDOS.find((valor) => valor === origen);
+  const origenes = obtenerOrigenesPermitidos();
+  const permitido = origenes.includes('*') ? '*' : origenes.find((valor) => valor === origen);
 
   if (permitido) {
     res.setHeader('Access-Control-Allow-Origin', permitido);

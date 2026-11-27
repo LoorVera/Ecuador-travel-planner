@@ -8,10 +8,12 @@
  * Si el servicio no responde, y `VITE_AI_FALLBACK` no está en `off`, se usan
  * recomendaciones de demostración (marcadas como tales en la interfaz).
  */
-import { generarSugerenciasMock } from './mockIA';
+import { generarSugerenciasMock } from './mockIA.js';
 
-const ENDPOINT = import.meta.env.VITE_AI_ENDPOINT || '/api/gemini';
-const USAR_MOCK = import.meta.env.VITE_AI_FALLBACK !== 'off';
+// El encadenamiento opcional permite importar este módulo desde las pruebas
+// de Node, donde `import.meta.env` no existe (en Vite sí está siempre presente).
+const ENDPOINT = import.meta.env?.VITE_AI_ENDPOINT || '/api/gemini';
+const USAR_MOCK = import.meta.env?.VITE_AI_FALLBACK !== 'off';
 
 /**
  * Permite forzar el caso de error controlado en la demo: añade `?simularFallo=1`
@@ -35,7 +37,7 @@ function normalizarRespuesta(data) {
           diasSugeridos: Number(sugerencia.diasSugeridos) || 3,
           precioEstimado: Number(sugerencia.precioEstimado) || 0,
         }))
-        .slice(0, 4)
+        .slice(0, 2)
     : [];
 
   const preguntasSugeridas = Array.isArray(data?.preguntasSugeridas)

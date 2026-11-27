@@ -63,6 +63,9 @@ export default defineConfig(({ mode }) => {
   if (!process.env.GEMINI_MODEL && env.GEMINI_MODEL) {
     process.env.GEMINI_MODEL = env.GEMINI_MODEL
   }
+  if (!process.env.ALLOWED_ORIGINS && env.ALLOWED_ORIGINS) {
+    process.env.ALLOWED_ORIGINS = env.ALLOWED_ORIGINS
+  }
 
   return {
     plugins: [react(), geminiDevApi()],

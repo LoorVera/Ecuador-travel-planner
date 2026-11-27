@@ -20,7 +20,7 @@ concurrency:
 
 jobs:
   calidad-y-build:
-    name: ESLint, build y artefacto
+    name: ESLint, pruebas, build y artefacto
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
@@ -40,7 +40,7 @@ jobs:
       - name: Validar la calidad del código con ESLint
         run: npm run lint
 
-      - name: Ejecutar pruebas de validación del asistente
+      - name: Ejecutar pruebas del asistente
         run: npm test
 
       # Las VITE_FIREBASE_* son públicas, pero no viven en el repositorio: sin

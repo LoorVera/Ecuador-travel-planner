@@ -107,7 +107,17 @@ export default function AiChatWidget() {
         { signal: controller.signal },
       );
 
-      setMensajes((prev) => [...prev, { id: nuevoId(), role: 'assistant', ...respuesta }]);
+      setMensajes((prev) => [
+        ...prev,
+        {
+          id: nuevoId(),
+          role: 'assistant',
+          // El texto también viaja como `content` para que el servidor pueda
+          // reenviarlo en el historial de los siguientes turnos.
+          content: respuesta.mensaje,
+          ...respuesta,
+        },
+      ]);
     } catch (error) {
       if (error?.name === 'AbortError') return;
       setMensajes((prev) => [
@@ -307,13 +317,25 @@ export default function AiChatWidget() {
                       color="yellow"
                       variant="light"
                       icon={<IconAlertCircle size={16} />}
-                      title="Modo demostración"
+                      title="Modo demostración — no es una respuesta de IA"
                       mb="xs"
                     >
                       <Text size="xs">
                         {mensaje.aviso ||
                           'El servicio de IA no respondió. Estas recomendaciones se generaron localmente.'}
                       </Text>
+                      {ultimoMensajeUsuario && !cargando && (
+                        <Button
+                          mt="xs"
+                          size="compact-xs"
+                          variant="light"
+                          color="yellow"
+                          leftSection={<IconRefresh size={12} />}
+                          onClick={() => enviar(ultimoMensajeUsuario.content)}
+                        >
+                          Reintentar con IA
+                        </Button>
+                      )}
                     </Alert>
                   )}
 

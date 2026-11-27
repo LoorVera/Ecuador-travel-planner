@@ -1,7 +1,7 @@
 # Asistente de viajes con Gemini
 
 Botón flotante (abajo a la derecha) disponible en todas las páginas. El usuario
-escribe lo que busca y Gemini devuelve hasta 4 destinos de Ecuador; cada
+escribe lo que busca y Gemini devuelve entre 1 y 2 destinos de Ecuador; cada
 sugerencia se puede agregar al itinerario/presupuesto.
 
 ## Arquitectura
@@ -24,13 +24,15 @@ La clave **nunca** se envía al navegador. No uses variables `VITE_GEMINI_*`.
 
    ```env
    GEMINI_API_KEY=tu_clave_real
-   GEMINI_MODEL=gemini-3.6-flash
+   GEMINI_MODEL=gemini-3.5-flash-lite
+   # VITE_AI_ENDPOINT vacío → usa el middleware local (/api/gemini).
+   VITE_AI_ENDPOINT=
    ```
 
-   > `gemini-2.5-flash` ya no está disponible para claves nuevas (Google
-   > responde 404). El asistente usa `gemini-3.6-flash` por defecto y prueba
-   > modelos de respaldo (`gemini-3.5-flash`, `gemini-3.8-flash`,
-   > `gemini-flash-latest`) si el principal está retirado o saturado.
+   > Google deprecó `gemini-2.5-flash` el 2 de noviembre de 2026. El asistente
+   > usa `gemini-3.5-flash-lite` por defecto (migración recomendada para
+   > proyectos nuevos) y prueba `gemini-3.8-flash` y `gemini-3.6-flash` si el
+   > principal está retirado o saturado. No se usan alias `*-latest`.
 
 3. Ejecuta `npm run dev`.
 
@@ -46,8 +48,9 @@ despliega, así que no hace falta un backend aparte.
 - **Backend (Vercel Functions):**
   1. Importa el repositorio en Vercel (la copia estática de Vercel no se usa; el
      sitio entregable es S3).
-  2. Define `GEMINI_API_KEY` (secreto), `GEMINI_MODEL` (opcional) y
-     `ALLOWED_ORIGINS` (opcional; por defecto `*`).
+  2. Define `GEMINI_API_KEY` (secreto), `GEMINI_MODEL` (opcional; actualiza o
+     borra si tiene un valor 2.5 antiguo) y `ALLOWED_ORIGINS` (opcional; por
+     defecto `*`). Vuelve a desplegar la función tras cambiar variables.
   3. Copia `https://<proyecto>.vercel.app/api/gemini` y úsalo como
      `VITE_AI_ENDPOINT` en `.env.local` y en las *Variables* de GitHub.
 - **CORS:** `api/gemini.js` responde al *preflight* `OPTIONS` y envía
@@ -60,10 +63,10 @@ despliega, así que no hace falta un backend aparte.
   acepta máximo 10 mensajes, 1200 caracteres por mensaje y 9000 en total, y
   descarta mensajes vacíos o con roles inválidos.
 - **Respuesta:** Gemini se llama con `responseSchema` (JSON estructurado) y el
-  resultado se normaliza antes de mostrarlo: tipos, región válida, 1–4
+  resultado se normaliza antes de mostrarlo: tipos, región válida, 1–2
   sugerencias, días entre 1 y 14 y precios acotados.
-- **Fallos controlados:** `Alert` rojo con botón **Reintentar**; los códigos 429,
-  502 y 503 se traducen a mensajes claros.
+- **Fallos controlados:** `Alert` rojo con botón **Reintentar**; los códigos 400,
+  401, 403, 429, 502, 503 y 504 se traducen a mensajes claros.
 - **Modo demostración:** si el servicio no responde y `VITE_AI_FALLBACK` no es
   `off`, se muestran recomendaciones locales con un aviso amarillo que aclara que
   no son de Gemini.
@@ -81,6 +84,7 @@ despliega, así que no hace falta un backend aparte.
 
 ## Pruebas rápidas
 
+- `npm test` ejecuta las 22 pruebas del asistente (núcleo, handler y cliente).
 - Sin clave configurada, `POST /api/gemini` responde 500 con un mensaje claro.
 - Con clave inválida, responde 502 indicando revisar `GEMINI_API_KEY`.
 - `OPTIONS /api/gemini` responde 204 con las cabeceras CORS.

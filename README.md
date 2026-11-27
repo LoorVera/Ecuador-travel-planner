@@ -89,7 +89,7 @@ hosting. Hay una plantilla pública en `.env.example`:
 # .env.local  — NO subir este archivo
 # Secreto (solo servidor)
 GEMINI_API_KEY=tu_clave_real_de_google_ai_studio
-GEMINI_MODEL=gemini-3.6-flash
+GEMINI_MODEL=gemini-3.5-flash-lite
 
 # Config web pública de Firebase (se inyecta en el bundle)
 VITE_FIREBASE_API_KEY=tu_api_key_web
@@ -112,7 +112,10 @@ ALLOWED_ORIGINS=*
 
 - `GEMINI_API_KEY`: clave de Google AI Studio (<https://aistudio.google.com/apikey>).
   **Único secreto real**; solo se usa en el servidor.
-- `GEMINI_MODEL` (opcional): por defecto `gemini-3.6-flash`.
+- `GEMINI_MODEL` (opcional): por defecto `gemini-3.5-flash-lite`. Google deprecó
+  `gemini-2.5-flash` en noviembre de 2026; si ya existe la variable en Vercel con
+  ese valor, actualízala o bórrala para usar el default del código. Respaldos:
+  `gemini-3.8-flash` y `gemini-3.6-flash`.
 - `VITE_FIREBASE_*`: configuración web pública de Firebase. No son secretos, pero
   son necesarias para que arranquen Auth y Firestore.
 - `VITE_AI_ENDPOINT` (pública): URL de la función que expone `/api/gemini` en el
@@ -182,11 +185,12 @@ pueda llamarlo.
   el servidor acepta como máximo 10 mensajes, 1200 caracteres por mensaje y 9000
   en total, descarta vacíos y fuerza roles alternados.
 - **Respuesta:** se exige JSON estructurado a Gemini (`responseSchema`) y se
-  normaliza antes de mostrarlo: tipos, región válida, 1–4 sugerencias, días entre
+  normaliza antes de mostrarlo: tipos, región válida, 1–2 sugerencias, días entre
   1 y 14 y precios acotados. Un `destinoId` inexistente se convierte en `0`.
-- **Fallos:** los errores de red, cuota (`429`), modelo retirado (`404`) o
-  saturación (`503`) se traducen a mensajes claros. La interfaz muestra un aviso
-  rojo con botón **Reintentar** en lugar de romperse.
+- **Fallos:** los errores de red, configuración (`400`), clave (`401/403`), cuota
+  (`429`), modelo retirado (`404`), saturación (`503`) y tiempo de espera (`504`)
+  se traducen a mensajes claros. La interfaz muestra un aviso rojo con botón
+  **Reintentar** en lugar de romperse.
 - **Demostración:** con `?simularFallo=1` se fuerza el caso de error controlado;
   con `VITE_AI_FALLBACK=mock` (por defecto) una caída del servicio muestra
   recomendaciones locales marcadas como **modo demostración**.
@@ -194,9 +198,10 @@ pueda llamarlo.
 ### Proveedor de IA y simulador (mock)
 
 - **Proveedor:** Google **Gemini** (API `generativelanguage.googleapis.com`).
-- **Modelo por defecto:** `gemini-3.6-flash`, con respaldo automático a
-  `gemini-3.5-flash`, `gemini-3.8-flash` y `gemini-flash-latest` si el principal
-  está retirado (404) o saturado (503).
+- **Modelo por defecto:** `gemini-3.5-flash-lite`, con respaldo automático a
+  `gemini-3.8-flash` y `gemini-3.6-flash` si el principal está retirado (404) o
+  saturado (503). La petición usa `thinkingLevel: low` (no el obsoleto
+  `thinkingBudget`) y no envía parámetros de muestreo como `temperature`.
 - **Mock:** sí, **solo como respaldo** (`src/lib/mockIA.js`). Las respuestas
   normales son reales de Gemini; el mock se usa cuando el servicio no responde y
   la interfaz lo etiqueta como "Modo demostración". Se puede desactivar con
@@ -280,7 +285,10 @@ powershell -ExecutionPolicy Bypass -File .\scripts\deploy-s3.ps1 -Bucket ecuador
    función). La copia estática de Vercel **no** se usa como sitio: el sitio
    entregable sigue siendo S3.
 2. En *Settings → Environment Variables* define `GEMINI_API_KEY` (secreto),
-   `GEMINI_MODEL` (opcional) y `ALLOWED_ORIGINS` (opcional).
+   `GEMINI_MODEL` (opcional) y `ALLOWED_ORIGINS` (opcional). Si `GEMINI_MODEL`
+   existe con un valor antiguo (`gemini-2.5-flash`), actualízalo a
+   `gemini-3.5-flash-lite` o elimínala: su valor sobrescribe el default del
+   código. Después de cambiar variables, vuelve a desplegar la función.
 3. Copia la URL de la función, con la forma
    `https://<proyecto>.vercel.app/api/gemini`. Backend en producción:
    **`https://ecuador-travel-seven.vercel.app/api/gemini`** (dominio alternativo
@@ -305,17 +313,18 @@ Alternativas al mismo endpoint: Cloudflare Worker o AWS Lambda + Function URL
 ## Limitaciones
 
 - **Dependencia de un servicio externo (Gemini):** cuotas, latencia y caídas
-  afectan al asistente. Google retiró `gemini-2.5-flash` para claves nuevas
-  (HTTP 404) y algunos modelos responden `503` por alta demanda; por eso hay
-  modelos de respaldo, pero si todos fallan se activa el modo demostración.
+  afectan al asistente. `gemini-2.5-flash` está deprecado desde noviembre de
+  2026; el asistente usa modelos 3.x vigentes con respaldos, pero si todos fallan
+  se activa el modo demostración.
 - **El modo demostración no es IA real:** si el endpoint falla y
   `VITE_AI_FALLBACK=mock`, las sugerencias se generan con el catálogo local y la
   interfaz lo indica. Sirve para no romper la demo, no como sustituto de Gemini.
 - **Rate limit en memoria:** los 12 req/min por IP se guardan en memoria del
   proceso; no se comparten entre instancias ni sobreviven a un *cold start*, por
   lo que no es un límite global fiable.
-- **Sin pruebas automatizadas:** el CI solo corre `lint` y `build`; no hay suite
-  de tests unitarios/E2E.
+- **Pruebas:** `npm test` ejecuta 22 pruebas unitarias de validación, llamada a
+  Gemini, manejo de errores, handler y cliente. El CI corre lint, pruebas y
+  build; no hay tests E2E en navegador.
 - **Tamaño del bundle:** algunos chunks superan los 500 kB (aviso de Vite); solo
   `/mapas` está dividido con carga diferida. No se aplicó más *code-splitting*.
 - **Reglas de Firebase:** la configuración web es pública; la protección real
