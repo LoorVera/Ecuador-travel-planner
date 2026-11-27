@@ -3,8 +3,8 @@ import { IconCompass, IconLogout, IconUser } from '@tabler/icons-react';
 import { useAuthStore } from '../store/useAuthStore';
 import { Link } from 'react-router-dom';
 
-// Etiqueta visual de la versión 2.0 (error de sintaxis introducido a propósito).
-const VERSION_LABEL = ;
+// Etiqueta visual de la versión 2.0.
+const VERSION_LABEL = 'v2.0';
 
 export default function Navbar() {
   const { user, openAuthModal, logout } = useAuthStore();
