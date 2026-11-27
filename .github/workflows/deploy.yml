@@ -1,0 +1,149 @@
+name: CD - Ecuador Travel Planner (S3)
+
+# Se dispara cuando termina el workflow de CI y publica el artefacto generado
+# en ese mismo run. Así el despliegue usa exactamente el build que validó ESLint
+# y las pruebas, sin volver a compilar.
+on:
+  workflow_run:
+    workflows: ["CI - Ecuador Travel Planner"]
+    types: [completed]
+
+# actions: read es necesario para descargar el artefacto de otro run.
+permissions:
+  actions: read
+  contents: read
+
+# Un mismo run de CI produce un solo despliegue; no cancelar despliegues en curso.
+concurrency:
+  group: deploy-${{ github.event.workflow_run.id }}
+  cancel-in-progress: false
+
+jobs:
+  desplegar-s3:
+    name: Desplegar en Amazon S3
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    # Solo despliegues de main, nunca de Pull Requests ni de forks.
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_branch == 'main' &&
+      github.event.workflow_run.event != 'pull_request' &&
+      github.event.workflow_run.head_repository.full_name == github.repository
+
+    steps:
+      - name: Validar secretos y variables de despliegue
+        env:
+          S3_BUCKET_NAME: ${{ vars.S3_BUCKET_NAME }}
+          AWS_REGION_VAR: ${{ vars.AWS_REGION }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}
+        run: |
+          set -e
+          for nombre in S3_BUCKET_NAME AWS_REGION_VAR AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN; do
+            if [ -z "${!nombre}" ]; then
+              echo "::error::Falta $nombre. Configúralo en Settings -> Secrets and variables -> Actions (Variables para bucket/región, Secrets para credenciales)."
+              exit 1
+            fi
+          done
+
+      - name: Descargar artefacto del run de CI
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configurar credenciales AWS (AWS Academy)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Verificar identidad AWS
+        run: aws sts get-caller-identity
+
+      - name: Asegurar bucket S3
+        env:
+          BUCKET: ${{ vars.S3_BUCKET_NAME }}
+          REGION: ${{ vars.AWS_REGION }}
+        run: |
+          set -e
+          if aws s3api head-bucket --bucket "$BUCKET" >/dev/null 2>&1; then
+            echo "El bucket s3://$BUCKET ya existe."
+          else
+            echo "Creando bucket s3://$BUCKET en $REGION ..."
+            if [ "$REGION" = "us-east-1" ]; then
+              aws s3api create-bucket --bucket "$BUCKET" --region "$REGION"
+            else
+              aws s3api create-bucket --bucket "$BUCKET" --region "$REGION" \
+                --create-bucket-configuration LocationConstraint="$REGION"
+            fi
+          fi
+
+      - name: Configurar permisos de lectura pública
+        env:
+          BUCKET: ${{ vars.S3_BUCKET_NAME }}
+        run: |
+          set -e
+          aws s3api put-public-access-block --bucket "$BUCKET" \
+            --public-access-block-configuration "BlockPublicAcls=false,IgnorePublicAcls=false,BlockPublicPolicy=false,RestrictPublicBuckets=false" || {
+              echo "::error::No se pudo desactivar 'Block all public access'. En AWS Academy puede estar restringido; revisa docs/DESPLIEGUE-S3.md."
+              exit 1
+            }
+          cat > s3-policy.json <<EOF
+          {
+            "Version": "2012-10-17",
+            "Statement": [
+              {
+                "Sid": "PublicReadGetObject",
+                "Effect": "Allow",
+                "Principal": "*",
+                "Action": "s3:GetObject",
+                "Resource": "arn:aws:s3:::$BUCKET/*"
+              }
+            ]
+          }
+          EOF
+          aws s3api put-bucket-policy --bucket "$BUCKET" --policy file://s3-policy.json || {
+            echo "::error::No se pudo aplicar la política de lectura pública al bucket."
+            exit 1
+          }
+
+      - name: Habilitar hosting estático (SPA)
+        env:
+          BUCKET: ${{ vars.S3_BUCKET_NAME }}
+        run: |
+          aws s3 website "s3://$BUCKET/" \
+            --index-document index.html --error-document index.html
+
+      - name: Sincronizar dist/ con Amazon S3
+        env:
+          BUCKET: ${{ vars.S3_BUCKET_NAME }}
+        run: |
+          set -e
+          aws s3 sync dist/ "s3://$BUCKET" --delete
+          # Asegura MIME types y caché correctos (evita páginas en blanco por JS como octet-stream).
+          aws s3 cp dist/index.html "s3://$BUCKET/index.html" \
+            --content-type "text/html; charset=utf-8" --cache-control "no-cache" \
+            --metadata-directive REPLACE
+          aws s3 cp dist/favicon.svg "s3://$BUCKET/favicon.svg" \
+            --content-type "image/svg+xml" --metadata-directive REPLACE
+          aws s3 cp dist/icons.svg "s3://$BUCKET/icons.svg" \
+            --content-type "image/svg+xml" --metadata-directive REPLACE
+          aws s3 cp dist/assets/ "s3://$BUCKET/assets/" --recursive \
+            --cache-control "public, max-age=31536000, immutable" --metadata-directive REPLACE
+
+      - name: URL de acceso a la aplicación
+        env:
+          BUCKET: ${{ vars.S3_BUCKET_NAME }}
+          REGION: ${{ vars.AWS_REGION }}
+        run: |
+          URL="http://$BUCKET.s3-website-$REGION.amazonaws.com"
+          echo "URL de la aplicación: $URL"
+          echo "### Despliegue en S3" >> "$GITHUB_STEP_SUMMARY"
+          echo "**URL:** $URL" >> "$GITHUB_STEP_SUMMARY"

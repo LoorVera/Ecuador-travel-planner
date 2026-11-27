@@ -171,6 +171,62 @@ powershell -ExecutionPolicy Bypass -File .\scripts\deploy-s3.ps1 -Bucket mi-buck
 
 ---
 
+## Opción C — Despliegue continuo con GitHub Actions
+
+El workflow `.github/workflows/ci.yml` genera el artefacto `dist/`. El workflow
+independiente `.github/workflows/deploy.yml` se dispara con `workflow_run`
+cuando el CI termina en verde, y **solo publica `main`** (nunca Pull Requests).
+Hace: descargar el artefacto de ese run → autenticarse → crear/verificar el
+bucket → activar hosting estático y lectura pública → `aws s3 sync` → mostrar la
+URL en el resumen del run.
+
+### C.1 Registrar credenciales (Secrets)
+
+En el repositorio: **Settings → Secrets and variables → Actions → Secrets → New
+repository secret**. Copia los valores del panel **AWS Details → AWS CLI** del
+Learner Lab:
+
+| Secret | Valor |
+| --- | --- |
+| `AWS_ACCESS_KEY_ID` | `aws_access_key_id` |
+| `AWS_SECRET_ACCESS_KEY` | `aws_secret_access_key` |
+| `AWS_SESSION_TOKEN` | `aws_session_token` |
+
+> Son temporales: al reanudar el laboratorio hay que generar otras y actualizar
+> los tres Secrets. Nunca las pegues en el código ni en el workflow.
+
+### C.2 Registrar bucket y región (Variables)
+
+En la pestaña **Variables → New repository variable**:
+
+| Variable | Ejemplo |
+| --- | --- |
+| `AWS_REGION` | `us-east-2` |
+| `S3_BUCKET_NAME` | `ecuador-travel` |
+
+El bucket debe ser único a nivel global. El job lo crea si no existe; si ya
+está creado desde la consola, lo reutiliza y aplica la misma configuración.
+
+### C.3 Publicar
+
+```powershell
+git add .
+git commit -m "Deploy continuo a S3"
+git push origin main
+```
+
+Abre la pestaña **Actions**: verás el run de `CI - Ecuador Travel Planner` en
+verde y, justo después, el run de `CD - Ecuador Travel Planner (S3)`, que imprime
+la URL (`http://<bucket>.s3-website-<region>.amazonaws.com`) en el resumen. Para
+volver a publicar sin hacer commit, relanza el run del CI desde Actions: el CD se
+dispara de nuevo. Los Pull Requests solo ejecutan el CI; no despliegan.
+
+> Si el laboratorio bloquea “Block all public access”, el paso de permisos falla
+> con un mensaje explicativo. En ese caso usa la Opción A/B y entrega la
+> evidencia equivalente descrita más abajo.
+
+---
+
 ## Verificación
 
 Abre el enlace en el navegador y comprueba:

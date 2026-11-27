@@ -139,9 +139,11 @@ Servidor / API (`api/`, misma carpeta en local y en Vercel Functions)
        └─ api/_gemini.js  prompt, esquema JSON y llamada a Gemini (API key aquí)
 
 Despliegue actual (AWS + GitHub)
-  ├─ .github/workflows/ci.yml   lint + build + artifact dist/ (no despliega)
-  ├─ scripts/deploy-s3.ps1      sube dist/ al bucket S3 (sitio estático)
-  └─ Vercel Functions           publica api/gemini.js (solo el endpoint de IA)
+  ├─ .github/workflows/ci.yml       lint + build + artifact dist/
+  ├─ .github/workflows/deploy.yml   workflow_run del CI → bucket, hosting,
+  │                                 permisos y sync (solo main, nunca PR)
+  ├─ scripts/deploy-s3.ps1          alternativa manual: sube dist/ al bucket S3
+  └─ Vercel Functions               publica api/gemini.js (solo el endpoint de IA)
 ```
 
 ### Frontend
@@ -212,9 +214,13 @@ pueda llamarlo.
    *Variables* del repositorio. El `dist/` se sube como **artifact**
    (`actions/upload-artifact`, retención 14 días) y es el mismo build que se
    publica en S3.
-4. **Despliegue (manual, AWS):** el frontend se publica en **Amazon S3** con
-   `scripts/deploy-s3.ps1` (o subiendo el contenido de `dist/` desde la consola).
-   Ver [`docs/DESPLIEGUE-S3.md`](docs/DESPLIEGUE-S3.md).
+4. **Despliegue continuo (AWS):** al terminar el CI en verde se dispara
+   `.github/workflows/deploy.yml` (`workflow_run`). Ese workflow descarga el
+   artefacto `dist` **del mismo run**, se autentica con las credenciales
+   temporales de AWS Academy, asegura el bucket (lo crea si no existe), activa el
+   hosting estático y la lectura pública, y sincroniza los archivos con
+   `aws s3 sync`. Alternativa manual: `scripts/deploy-s3.ps1` o la consola. Ver
+   [`docs/DESPLIEGUE-S3.md`](docs/DESPLIEGUE-S3.md).
 5. **Hosting:** S3 sirve `index.html`, `assets/` y los SVG. Las rutas `/resenas`
    y `/mapas` funcionan al recargar gracias al **Error document = `index.html`**
    configurado en el bucket; no hay rewrite de servidor como en Vercel.
@@ -227,15 +233,33 @@ pueda llamarlo.
    se sirve con `no-cache`. Para una CDN real y HTTPS habría que anteponer
    **CloudFront** (ver Limitaciones).
 
-> El CI **valida** lint y build, pero **no despliega**: la publicación en S3 es un
-> paso manual. Si faltan las variables públicas, el job falla a propósito para no
-> generar un artifact que no arranque en el navegador.
+> El workflow de despliegue solo corre cuando el CI de `main` termina en verde
+> (incluidas las reejecuciones manuales del CI); los Pull Requests únicamente
+> validan lint y build. Si faltan las variables públicas o las credenciales, el
+> workflow falla a propósito para no publicar un artifact que no arranque en el
+> navegador.
 
 ### Despliegue en AWS S3 (frontend)
 
 El sitio publicado es el **frontend estático** en Amazon S3 (AWS Academy Learner
 Lab). La guía completa está en [`docs/DESPLIEGUE-S3.md`](docs/DESPLIEGUE-S3.md).
-En resumen:
+
+**Automático (CD):** al hacer `push` a `main`, `.github/workflows/deploy.yml`
+publica el mismo artefacto generado por el CI. Configura una vez en el
+repositorio (*Settings → Secrets and variables → Actions*):
+
+| Tipo | Nombre | Valor |
+| --- | --- | --- |
+| Secret | `AWS_ACCESS_KEY_ID` | Access key de AWS Academy |
+| Secret | `AWS_SECRET_ACCESS_KEY` | Secret key de AWS Academy |
+| Secret | `AWS_SESSION_TOKEN` | Session token de AWS Academy |
+| Variable | `AWS_REGION` | p. ej. `us-east-2` |
+| Variable | `S3_BUCKET_NAME` | p. ej. `ecuador-travel` |
+
+> Las credenciales del Learner Lab caducan al cerrar la sesión: hay que
+> actualizar los tres Secrets cada vez que se reanuda el laboratorio.
+
+**Manual (alternativa):**
 
 ```powershell
 npm run build
@@ -306,7 +330,9 @@ Alternativas al mismo endpoint: Cloudflare Worker o AWS Lambda + Function URL
   bucket. Al recargar `/resenas` o `/mapas` el usuario ve la página correcta,
   pero S3 responde con código **404**; para un `200` real hace falta CloudFront.
 - **Credenciales del laboratorio:** las de AWS Academy caducan al terminar la
-  sesión, así que el despliegue en S3 es manual y no se automatiza (CD opcional).
+  sesión; el CD queda inactivo hasta que se actualicen los Secrets. Si el lab
+  bloquea el acceso público, el job falla en el paso de permisos y se usa la
+  alternativa manual/con evidencia equivalente.
 - **Mapa base público:** depende de los servidores de teselas de OpenStreetMap
   (política de uso y sin SLA); no se usa un proveedor con clave ni CDN propia.
 - **Idioma y alcance:** el asistente solo recomienda destinos de Ecuador y no
