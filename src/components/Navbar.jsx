@@ -3,6 +3,9 @@ import { IconCompass, IconLogout, IconUser } from '@tabler/icons-react';
 import { useAuthStore } from '../store/useAuthStore';
 import { Link } from 'react-router-dom';
 
+// Etiqueta visual de la versión 2.0 (error de sintaxis introducido a propósito).
+const VERSION_LABEL = ;
+
 export default function Navbar() {
   const { user, openAuthModal, logout } = useAuthStore();
 
@@ -16,6 +19,9 @@ export default function Navbar() {
             <Title order={4}>RutaEcuador</Title>
             <Badge variant="dot" color="green" visibleFrom="xs">
               Planificador Oficial
+            </Badge>
+            <Badge color="grape" variant="filled">
+              {VERSION_LABEL}
             </Badge>
             <Group gap="xs" ml="md">
               <Button component={Link} to="/" variant="subtle" size="xs">
