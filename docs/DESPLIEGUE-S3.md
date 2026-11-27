@@ -1,4 +1,4 @@
-# Despliegue del frontend en Amazon S3 (AWS Academy)
+# Despliegue del frontend en Amazon S3
 
 Esta guía publica **solo el frontend estático** (contenido de `dist/`) como sitio
 web en Amazon S3. El backend (`api/gemini`) **no** se despliega aquí: S3 solo
@@ -12,7 +12,9 @@ el widget muestra el aviso de "modo demostración" o el error controlado.
 ## Requisitos
 
 - Node.js LTS + npm.
-- Acceso a **AWS Academy Learner Lab** con la sesión iniciada.
+- Credenciales AWS (**Access Key ID** y **Secret Access Key**) de un usuario/rol
+  con permisos sobre el bucket: creación, lectura/escritura de objetos, política
+  y hosting estático.
 - (Opcional, para el método con script) **AWS CLI v2** instalado.
 
 ---
@@ -45,17 +47,17 @@ dist/
 
 ---
 
-## Paso 2 — Obtener credenciales en AWS Academy
+## Paso 2 — Obtener credenciales AWS
 
-1. En el laboratorio, pulsa **AWS Details**.
-2. En **AWS CLI**, pulsa **Show** y copia:
-   - `aws_access_key_id`
-   - `aws_secret_access_key`
-   - `aws_session_token`
+1. En la consola de AWS, entra en **IAM → Users** (o usa el rol que ya tengas).
+2. Copia el **Access Key ID** y el **Secret Access Key**.
 
-> Las credenciales son temporales: caducan al terminar la sesión del laboratorio.
+> El workflow de CD usa solo estas dos claves: **no necesita session token**.
+> Si más adelante usas AWS Academy Learner Lab, sus credenciales temporales
+> requieren además `AWS_SESSION_TOKEN`.
 
-Elige **una** de las dos opciones siguientes.
+Elige **una** de las tres opciones siguientes: A (consola), B (script) o
+C (GitHub Actions).
 
 ---
 
@@ -143,14 +145,13 @@ Verifica:
 aws --version
 ```
 
-### B.2 Cargar las credenciales temporales
+### B.2 Cargar las credenciales AWS
 
 En la **misma** ventana de PowerShell:
 
 ```powershell
 $env:AWS_ACCESS_KEY_ID     = "TU_ACCESS_KEY"
 $env:AWS_SECRET_ACCESS_KEY = "TU_SECRET_KEY"
-$env:AWS_SESSION_TOKEN     = "TU_SESSION_TOKEN"
 $env:AWS_DEFAULT_REGION    = "us-east-1"
 ```
 
@@ -183,17 +184,20 @@ URL en el resumen del run.
 ### C.1 Registrar credenciales (Secrets)
 
 En el repositorio: **Settings → Secrets and variables → Actions → Secrets → New
-repository secret**. Copia los valores del panel **AWS Details → AWS CLI** del
-Learner Lab:
+repository secret**. Copia tus credenciales AWS:
 
 | Secret | Valor |
 | --- | --- |
-| `AWS_ACCESS_KEY_ID` | `aws_access_key_id` |
-| `AWS_SECRET_ACCESS_KEY` | `aws_secret_access_key` |
-| `AWS_SESSION_TOKEN` | `aws_session_token` |
+| `AWS_ACCESS_KEY_ID` | Access Key ID |
+| `AWS_SECRET_ACCESS_KEY` | Secret Access Key |
 
-> Son temporales: al reanudar el laboratorio hay que generar otras y actualizar
-> los tres Secrets. Nunca las pegues en el código ni en el workflow.
+> No hace falta `AWS_SESSION_TOKEN`: las claves son permanentes. GitHub las
+> enmascara en los logs, pero nunca las pegues en el código ni en el workflow.
+> Usa un usuario/rol con permisos mínimos sobre el bucket y rótalas si se filtran.
+> Acciones IAM necesarias (sobre `arn:aws:s3:::TU_BUCKET` y `TU_BUCKET/*`):
+> `s3:CreateBucket`, `s3:ListBucket`, `s3:PutObject`, `s3:DeleteObject`,
+> `s3:GetObject`, `s3:PutBucketPublicAccessBlock`, `s3:PutBucketPolicy` y
+> `s3:PutBucketWebsite`.
 
 ### C.2 Registrar bucket y región (Variables)
 

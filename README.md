@@ -216,8 +216,8 @@ pueda llamarlo.
    publica en S3.
 4. **Despliegue continuo (AWS):** al terminar el CI en verde se dispara
    `.github/workflows/deploy.yml` (`workflow_run`). Ese workflow descarga el
-   artefacto `dist` **del mismo run**, se autentica con las credenciales
-   temporales de AWS Academy, asegura el bucket (lo crea si no existe), activa el
+   artefacto `dist` **del mismo run**, se autentica con tus credenciales AWS
+   (Access Key + Secret Key), asegura el bucket (lo crea si no existe), activa el
    hosting estático y la lectura pública, y sincroniza los archivos con
    `aws s3 sync`. Alternativa manual: `scripts/deploy-s3.ps1` o la consola. Ver
    [`docs/DESPLIEGUE-S3.md`](docs/DESPLIEGUE-S3.md).
@@ -241,8 +241,8 @@ pueda llamarlo.
 
 ### Despliegue en AWS S3 (frontend)
 
-El sitio publicado es el **frontend estático** en Amazon S3 (AWS Academy Learner
-Lab). La guía completa está en [`docs/DESPLIEGUE-S3.md`](docs/DESPLIEGUE-S3.md).
+El sitio publicado es el **frontend estático** en Amazon S3. La guía completa
+está en [`docs/DESPLIEGUE-S3.md`](docs/DESPLIEGUE-S3.md).
 
 **Automático (CD):** al hacer `push` a `main`, `.github/workflows/deploy.yml`
 publica el mismo artefacto generado por el CI. Configura una vez en el
@@ -250,20 +250,21 @@ repositorio (*Settings → Secrets and variables → Actions*):
 
 | Tipo | Nombre | Valor |
 | --- | --- | --- |
-| Secret | `AWS_ACCESS_KEY_ID` | Access key de AWS Academy |
-| Secret | `AWS_SECRET_ACCESS_KEY` | Secret key de AWS Academy |
-| Secret | `AWS_SESSION_TOKEN` | Session token de AWS Academy |
+| Secret | `AWS_ACCESS_KEY_ID` | Access Key de tu usuario/rol IAM |
+| Secret | `AWS_SECRET_ACCESS_KEY` | Secret Key de ese mismo usuario/rol |
 | Variable | `AWS_REGION` | p. ej. `us-east-2` |
 | Variable | `S3_BUCKET_NAME` | p. ej. `ecuador-travel` |
 
-> Las credenciales del Learner Lab caducan al cerrar la sesión: hay que
-> actualizar los tres Secrets cada vez que se reanuda el laboratorio.
+> **No se usa session token**: las claves son permanentes. GitHub las enmascara
+> en los logs, pero limítalas a un usuario IAM con permisos sobre el bucket
+> (creación, lectura/escritura de objetos, política y hosting), y rótalas si se
+> filtran.
 
 **Manual (alternativa):**
 
 ```powershell
 npm run build
-# Opción con AWS CLI v2 (credenciales temporales del lab ya cargadas):
+# Opción con AWS CLI v2 (credenciales AWS ya cargadas):
 powershell -ExecutionPolicy Bypass -File .\scripts\deploy-s3.ps1 -Bucket ecuador-travel -Region us-east-2
 ```
 
@@ -329,10 +330,10 @@ Alternativas al mismo endpoint: Cloudflare Worker o AWS Lambda + Function URL
 - **Rutas del SPA en S3:** dependen del *Error document = `index.html`* del
   bucket. Al recargar `/resenas` o `/mapas` el usuario ve la página correcta,
   pero S3 responde con código **404**; para un `200` real hace falta CloudFront.
-- **Credenciales del laboratorio:** las de AWS Academy caducan al terminar la
-  sesión; el CD queda inactivo hasta que se actualicen los Secrets. Si el lab
-  bloquea el acceso público, el job falla en el paso de permisos y se usa la
-  alternativa manual/con evidencia equivalente.
+- **Permisos AWS:** el CD depende de que el usuario IAM tenga permisos sobre el
+  bucket; si le falta `PutBucketPolicy` o `PutPublicAccessBlock`, el job falla en
+  el paso de permisos y hay que ajustar la política IAM (o aplicar esos ajustes
+  manualmente).
 - **Mapa base público:** depende de los servidores de teselas de OpenStreetMap
   (política de uso y sin SLA); no se usa un proveedor con clave ni CDN propia.
 - **Idioma y alcance:** el asistente solo recomienda destinos de Ecuador y no

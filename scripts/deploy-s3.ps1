@@ -3,14 +3,14 @@
   Publica el frontend (dist/) de Ecuador Travel Planner como sitio web estático en Amazon S3.
 
 .DESCRIPTION
-  Pensado para AWS Academy Learner Lab. Antes de ejecutarlo, copia las credenciales
-  temporales del panel "AWS Details" (Access key, Secret key y Session token) y
-  expórtalas en la MISMA sesión de PowerShell:
+  Antes de ejecutarlo, expón tus credenciales AWS (Access key y Secret key de un
+  usuario/rol con permisos sobre el bucket) en la MISMA sesión de PowerShell:
 
     $env:AWS_ACCESS_KEY_ID     = "..."
     $env:AWS_SECRET_ACCESS_KEY = "..."
-    $env:AWS_SESSION_TOKEN     = "..."
     $env:AWS_DEFAULT_REGION    = "us-east-1"
+
+  No se usa session token: las claves son permanentes.
 
   Requiere AWS CLI v2 y Node/npm instalados.
 
@@ -75,7 +75,7 @@ try {
   aws s3api put-public-access-block --bucket $Bucket `
     --public-access-block-configuration "BlockPublicAcls=false,IgnorePublicAcls=false,BlockPublicPolicy=false,RestrictPublicBuckets=false"
   if ($LASTEXITCODE -ne 0) {
-    throw "No se pudo desactivar 'Block Public Access'. En AWS Academy puede estar restringido; revisa la guia (docs/DESPLIEGUE-S3.md)."
+    throw "No se pudo desactivar 'Block Public Access'. Revisa los permisos IAM y la guia (docs/DESPLIEGUE-S3.md)."
   }
 
   Write-Host "==> Configurando hosting de sitio web estatico (SPA)..." -ForegroundColor Cyan
