@@ -60,6 +60,9 @@ jobs:
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          # Solo se usa si las credenciales son temporales (AWS Academy / STS).
+          # Si el secret no existe, GitHub lo deja vacío y el action lo ignora.
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
           aws-region: ${{ vars.AWS_REGION }}
 
       - name: Verificar identidad AWS

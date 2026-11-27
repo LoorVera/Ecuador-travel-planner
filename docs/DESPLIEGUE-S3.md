@@ -190,10 +190,18 @@ repository secret**. Copia tus credenciales AWS:
 | --- | --- |
 | `AWS_ACCESS_KEY_ID` | Access Key ID |
 | `AWS_SECRET_ACCESS_KEY` | Secret Access Key |
+| `AWS_SESSION_TOKEN` | Solo si las claves son temporales (AWS Academy / STS) |
 
-> No hace falta `AWS_SESSION_TOKEN`: las claves son permanentes. GitHub las
-> enmascara en los logs, pero nunca las pegues en el código ni en el workflow.
-> Usa un usuario/rol con permisos mínimos sobre el bucket y rótalas si se filtran.
+> Con claves permanentes de un usuario IAM **no** hace falta
+> `AWS_SESSION_TOKEN`. En cambio, si usas credenciales temporales (por ejemplo
+> AWS Academy Learner Lab), el workflow ya las acepta: agrega el secret
+> `AWS_SESSION_TOKEN` con el token de la sesión. Recuerda que esas credenciales
+> caducan: habrá que renovar los tres secrets cuando se expiren. Si el run falla
+> en *Configurar credenciales AWS* con «The security token included in the
+> request is invalid», las credenciales actuales son temporales, están expiradas
+> o son incorrectas. GitHub las enmascara en los logs, pero nunca las pegues en
+> el código ni en el workflow. Usa permisos mínimos sobre el bucket y rótalas si
+> se filtran.
 > Acciones IAM necesarias (sobre `arn:aws:s3:::TU_BUCKET` y `TU_BUCKET/*`):
 > `s3:CreateBucket`, `s3:ListBucket`, `s3:PutObject`, `s3:DeleteObject`,
 > `s3:GetObject`, `s3:PutBucketPublicAccessBlock`, `s3:PutBucketPolicy` y
