@@ -216,8 +216,12 @@ En la pestaña **Variables → New repository variable**:
 | `AWS_REGION` | `us-east-2` |
 | `S3_BUCKET_NAME` | `ecuador-travel` |
 
-El bucket debe ser único a nivel global. El job lo crea si no existe; si ya
-está creado desde la consola, lo reutiliza y aplica la misma configuración.
+El bucket debe ser único a nivel global y **ya debe existir**: el CD no lo crea.
+Crearlo desde la consola (sección A.1) o usar un bucket al que el rol/IAM tenga
+acceso. Si las credenciales vienen de AWS Academy, una *resource control policy*
+puede denegar `s3:CreateBucket`; en ese caso crea el bucket desde la consola del
+laboratorio (o con otra cuenta autorizada) y luego actualiza esta variable. El
+job reutiliza el bucket y aplica la misma configuración de hosting y permisos.
 
 ### C.3 Publicar
 
@@ -293,7 +297,8 @@ No es necesario para esta entrega si se acepta el enlace HTTP de S3.
 | Página en blanco y error de MIME en consola | El `.js` se sirvió como `binary/octet-stream`. Corrige su Content-Type a `text/javascript` o `application/javascript`. |
 | `/resenas` da `404` | El **Error document** no está en `index.html`. |
 | `BucketAlreadyExists` | El nombre de bucket es global; elige otro. |
-| `AccessDenied` al crear el bucket | Región o permisos del laboratorio; revisa que sea la cuenta/región del lab. |
+| `AccessDenied` al verificar/crear el bucket | El bucket no existe o el rol no tiene `s3:ListBucket`. En AWS Academy puede haber una RCP que deniega `s3:CreateBucket`: crea el bucket en la consola con otro nombre único, usa credenciales de la cuenta dueña y actualiza `S3_BUCKET_NAME`. |
+| `No se puede acceder a s3://...` en el CD | Revisa `S3_BUCKET_NAME`, la región y que las credenciales pertenezcan a la cuenta dueña del bucket. |
 | El chat de IA muestra "Modo demostración" | Falta `VITE_AI_ENDPOINT` en el build o el backend no responde; revisa CORS y la URL de la función. |
 
 ---

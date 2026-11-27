@@ -68,22 +68,21 @@ jobs:
       - name: Verificar identidad AWS
         run: aws sts get-caller-identity
 
-      - name: Asegurar bucket S3
+      - name: Verificar acceso al bucket S3
         env:
           BUCKET: ${{ vars.S3_BUCKET_NAME }}
-          REGION: ${{ vars.AWS_REGION }}
         run: |
           set -e
-          if aws s3api head-bucket --bucket "$BUCKET" >/dev/null 2>&1; then
-            echo "El bucket s3://$BUCKET ya existe."
+          # El CD no crea buckets: en cuentas de laboratorio una resource control
+          # policy puede denegar s3:CreateBucket incluso con credenciales válidas.
+          if aws s3api head-bucket --bucket "$BUCKET" 2>head-bucket.err; then
+            echo "El bucket s3://$BUCKET existe y es accesible."
           else
-            echo "Creando bucket s3://$BUCKET en $REGION ..."
-            if [ "$REGION" = "us-east-1" ]; then
-              aws s3api create-bucket --bucket "$BUCKET" --region "$REGION"
-            else
-              aws s3api create-bucket --bucket "$BUCKET" --region "$REGION" \
-                --create-bucket-configuration LocationConstraint="$REGION"
-            fi
+            echo "::error::No se puede acceder a s3://$BUCKET con estas credenciales."
+            echo "Detalle de AWS:"
+            cat head-bucket.err
+            echo "Crea el bucket en tu cuenta (o usa uno al que tengas acceso) y actualiza la variable S3_BUCKET_NAME."
+            exit 1
           fi
 
       - name: Configurar permisos de lectura pública
